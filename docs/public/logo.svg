@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Cylinder (database) -->
+  <ellipse cx="32" cy="14" rx="20" ry="6" fill="#3B82F6" opacity="0.9"/>
+  <rect x="12" y="14" width="40" height="28" fill="#2563EB"/>
+  <ellipse cx="32" cy="42" rx="20" ry="6" fill="#1D4ED8"/>
+  <!-- Green check / arrow (zero-downtime) -->
+  <path d="M22 32 L29 39 L42 25" stroke="#4ADE80" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

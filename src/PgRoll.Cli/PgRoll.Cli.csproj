@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackageId>PgRoll.Cli</PackageId>
+    <AssemblyName>pgroll</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PgRoll.Core\PgRoll.Core.csproj" />
+    <ProjectReference Include="..\PgRoll.PostgreSQL\PgRoll.PostgreSQL.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+{
+  "name": "pgroll-docs",
+  "version": "1.0.0",
+  "description": "pgroll.NET documentation",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

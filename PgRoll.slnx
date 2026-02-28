@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PgRoll.Cli/PgRoll.Cli.csproj" />
+    <Project Path="src/PgRoll.Core/PgRoll.Core.csproj" />
+    <Project Path="src/PgRoll.EntityFrameworkCore/PgRoll.EntityFrameworkCore.csproj" />
+    <Project Path="src/PgRoll.PostgreSQL/PgRoll.PostgreSQL.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PgRoll.Core.Tests/PgRoll.Core.Tests.csproj" />
+    <Project Path="tests/PgRoll.EntityFrameworkCore.Tests/PgRoll.EntityFrameworkCore.Tests.csproj" />
+    <Project Path="tests/PgRoll.PostgreSQL.Tests/PgRoll.PostgreSQL.Tests.csproj" />
+  </Folder>
+</Solution>

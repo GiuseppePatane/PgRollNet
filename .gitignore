@@ -1,0 +1,32 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.log
+TestResults/
+coverage/
+*.trx
+*.coveragexml
+*.nupkg
+*.snupkg
+
+## Secrets / environment
+.env
+.env.*
+appsettings.Local.json
+appsettings.Production.json
+
+## OS
+.DS_Store
+Thumbs.db
+
+## VitePress
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
