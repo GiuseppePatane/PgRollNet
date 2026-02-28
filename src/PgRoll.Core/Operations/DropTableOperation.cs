@@ -12,6 +12,8 @@ public sealed class DropTableOperation : IMigrationOperation
     [JsonPropertyName("table")]
     public required string Table { get; init; }
 
+    public string Describe() => $"drop table '{Table}'";
+
     public ValidationResult ValidateStructure() =>
         string.IsNullOrWhiteSpace(Table)
             ? ValidationResult.Failure("Table name is required.")

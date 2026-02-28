@@ -15,6 +15,8 @@ public sealed class RenameTableOperation : IMigrationOperation
     [JsonPropertyName("to")]
     public required string To { get; init; }
 
+    public string Describe() => $"rename table '{From}' \u2192 '{To}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(From))

@@ -18,6 +18,8 @@ public sealed class RenameConstraintOperation : IMigrationOperation
     [JsonPropertyName("to")]
     public required string To { get; init; }
 
+    public string Describe() => $"rename constraint '{From}' \u2192 '{To}' on '{Table}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

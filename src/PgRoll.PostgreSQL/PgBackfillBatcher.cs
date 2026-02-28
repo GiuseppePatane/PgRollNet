@@ -2,12 +2,21 @@ using Npgsql;
 
 namespace PgRoll.PostgreSQL;
 
+/// <summary>Progress snapshot reported after each backfill batch.</summary>
+public sealed record BackfillProgress(
+    string Schema,
+    string Table,
+    int BatchNumber,
+    long RowsUpdatedThisBatch,
+    long TotalRowsUpdated);
+
 public sealed class PgBackfillBatcher
 {
     /// <summary>
     /// Updates rows in batches, setting <paramref name="tempColumn"/> = <paramref name="upExpression"/>
     /// for rows where the temp column is still NULL. Runs until no more rows remain.
     /// </summary>
+    /// <param name="progress">Optional progress reporter invoked after each batch.</param>
     /// <returns>Total number of rows updated.</returns>
     public static async Task<long> BackfillAsync(
         NpgsqlDataSource dataSource,
@@ -17,6 +26,7 @@ public sealed class PgBackfillBatcher
         string upExpression,
         int batchSize = 1000,
         TimeSpan batchDelay = default,
+        IProgress<BackfillProgress>? progress = null,
         CancellationToken ct = default)
     {
         // Use a subquery (not FROM) so that column references in upExpression
@@ -33,6 +43,7 @@ public sealed class PgBackfillBatcher
             """;
 
         long total = 0;
+        int batchNumber = 0;
         while (true)
         {
             ct.ThrowIfCancellationRequested();
@@ -41,6 +52,10 @@ public sealed class PgBackfillBatcher
             await using var cmd = new NpgsqlCommand(sql, conn);
             var updated = await cmd.ExecuteNonQueryAsync(ct);
             total += updated;
+            batchNumber++;
+
+            if (updated > 0)
+                progress?.Report(new BackfillProgress(schema, table, batchNumber, updated, total));
 
             if (updated == 0) break;
 

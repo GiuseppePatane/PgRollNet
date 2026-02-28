@@ -14,6 +14,8 @@ public sealed class DropIndexOperation : IMigrationOperation
 
     public bool RequiresConcurrentConnection => true;
 
+    public string Describe() => $"drop index '{Name}'";
+
     public ValidationResult ValidateStructure() =>
         string.IsNullOrWhiteSpace(Name)
             ? ValidationResult.Failure("Index name is required.")

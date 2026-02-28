@@ -27,6 +27,9 @@ public interface IMigrationOperation
     /// </summary>
     ValidationResult ValidateStructure() => ValidationResult.Success;
 
+    /// <summary>Returns a short human-readable description for dry-run output and logging.</summary>
+    string Describe() => Type;
+
     /// <summary>
     /// True if StartAsync uses CREATE/DROP INDEX CONCURRENTLY, which requires autocommit.
     /// </summary>

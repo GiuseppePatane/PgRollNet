@@ -25,6 +25,12 @@ public sealed class PgMigrationExecutor
     private readonly ILogger<PgMigrationExecutor> _logger;
     private readonly string _schemaName;
 
+    /// <summary>
+    /// Optional progress reporter for backfill operations.
+    /// Set before calling <see cref="StartAsync"/> to receive per-batch updates.
+    /// </summary>
+    public IProgress<BackfillProgress>? BackfillProgress { get; set; }
+
     public PgMigrationExecutor(
         NpgsqlDataSource dataSource,
         string schemaName = "public",
@@ -56,6 +62,15 @@ public sealed class PgMigrationExecutor
     {
         if (migration.Operations.Count == 0)
             throw new EmptyMigrationError();
+
+        // Acquire a per-schema advisory lock (non-blocking) to prevent two concurrent processes
+        // from both seeing "no active migration" and both attempting to start one.
+        await using var lockConn = await _dataSource.OpenConnectionAsync(ct);
+        if (!await TryAcquireAdvisoryLockAsync(lockConn, _schemaName, ct))
+            throw new MigrationLockError(_schemaName);
+
+        try
+        {
 
         var active = await _stateStore.GetActiveMigrationAsync(_schemaName, ct);
         if (active is not null)
@@ -129,6 +144,12 @@ public sealed class PgMigrationExecutor
         await _stateStore.RecordStartedAsync(record, ct);
         _logger.LogInformation("Migration '{Name}' started successfully.", migration.Name);
         return new StartResult(migration.Name, RequiresComplete: true);
+
+        } // end advisory-lock try
+        finally
+        {
+            await ReleaseAdvisoryLockAsync(lockConn, _schemaName, ct);
+        }
     }
 
     /// <summary>Completes the active migration: executes Complete phase of every operation.</summary>
@@ -405,7 +426,7 @@ public sealed class PgMigrationExecutor
             tempCol, upExpr, versionSchema, ct);
 
         // Backfill uses its own connections (outside the main connection)
-        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, tempCol, upExpr, ct: ct);
+        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, tempCol, upExpr, progress: BackfillProgress, ct: ct);
 
         // Build version schema view
         var origCols = OriginalColumnExpressions(snapshot, op.Table);
@@ -510,7 +531,7 @@ public sealed class PgMigrationExecutor
             downExpression: op.Down, tempColumnAlias: tempAlias);
 
         // Backfill (uses its own connections)
-        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, ct: ct);
+        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, progress: BackfillProgress, ct: ct);
 
         // Add unique index if requested
         if (op.Unique == true)
@@ -665,6 +686,29 @@ public sealed class PgMigrationExecutor
     {
         await using var cmd = new NpgsqlCommand(sql, conn);
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    // ── Advisory lock helpers ─────────────────────────────────────────────────
+    // Key: (classid=hashtext('pgroll'), objid=hashtext(schemaName))
+    // Ensures concurrent StartAsync calls on the same schema fail fast instead of
+    // racing to insert a duplicate active-migration record.
+
+    private static async Task<bool> TryAcquireAdvisoryLockAsync(
+        NpgsqlConnection conn, string schema, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT pg_try_advisory_lock(hashtext('pgroll'), hashtext($1))", conn);
+        cmd.Parameters.AddWithValue(schema);
+        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
+    private static async Task ReleaseAdvisoryLockAsync(
+        NpgsqlConnection conn, string schema, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT pg_advisory_unlock(hashtext('pgroll'), hashtext($1))", conn);
+        cmd.Parameters.AddWithValue(schema);
+        await cmd.ExecuteScalarAsync(ct);
     }
 
     private static string Quote(string schema, string name) =>

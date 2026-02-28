@@ -51,6 +51,8 @@ public sealed class AlterColumnOperation : IMigrationOperation
     /// <summary>Always uses autocommit — backfill uses dataSource connections and Unique may use CONCURRENTLY.</summary>
     public bool RequiresConcurrentConnection => true;
 
+    public string Describe() => $"alter column '{Column}' in '{Table}'{(Name is not null ? $" \u2192 '{Name}'" : "")}{(DataType is not null ? $" type:{DataType}" : "")}";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

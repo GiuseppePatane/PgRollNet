@@ -33,6 +33,8 @@ public sealed class CreateTableOperation : IMigrationOperation
     [JsonPropertyName("columns")]
     public required IReadOnlyList<ColumnDefinition> Columns { get; init; }
 
+    public string Describe() => $"create table '{Table}' ({Columns.Count} column(s))";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

@@ -31,6 +31,8 @@ public sealed class AddColumnOperation : IMigrationOperation
     /// <summary>Requires autocommit when Up is specified (backfill uses dataSource connections).</summary>
     public bool RequiresConcurrentConnection => Up is not null;
 
+    public string Describe() => $"add column '{Column.Name} {Column.Type}' to '{Table}'{(Up is not null ? " [expand/contract]" : "")}";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

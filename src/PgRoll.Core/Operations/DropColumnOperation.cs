@@ -19,6 +19,8 @@ public sealed class DropColumnOperation : IMigrationOperation
     [JsonPropertyName("down")]
     public string? Down { get; init; }
 
+    public string Describe() => $"drop column '{Column}' from '{Table}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

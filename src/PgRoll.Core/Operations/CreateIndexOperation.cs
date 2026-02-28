@@ -23,6 +23,8 @@ public sealed class CreateIndexOperation : IMigrationOperation
 
     public bool RequiresConcurrentConnection => true;
 
+    public string Describe() => $"create {(Unique ? "unique " : "")}index '{Name}' on '{Table}'({string.Join(", ", Columns)})";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Name))

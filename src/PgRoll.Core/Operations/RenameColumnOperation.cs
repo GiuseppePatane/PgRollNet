@@ -18,6 +18,8 @@ public sealed class RenameColumnOperation : IMigrationOperation
     [JsonPropertyName("to")]
     public required string To { get; init; }
 
+    public string Describe() => $"rename column '{From}' \u2192 '{To}' in '{Table}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

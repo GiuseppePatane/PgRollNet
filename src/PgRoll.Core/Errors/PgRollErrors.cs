@@ -51,6 +51,9 @@ public sealed class InvalidColumnTypeError(string columnType)
 public sealed class MissingRequiredFieldError(string fieldName)
     : PgRollException($"Required field '{fieldName}' is missing.");
 
+public sealed class MigrationLockError(string schema)
+    : PgRollException($"Could not acquire migration lock for schema '{schema}'. Another migration may already be in progress.");
+
 public sealed class EmptyMigrationError()
     : PgRollException("Migration must contain at least one operation.");
 

@@ -15,6 +15,8 @@ public sealed class DropConstraintOperation : IMigrationOperation
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 
+    public string Describe() => $"drop constraint '{Name}' from '{Table}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))

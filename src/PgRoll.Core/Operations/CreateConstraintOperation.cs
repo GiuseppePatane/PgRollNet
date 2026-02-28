@@ -35,6 +35,8 @@ public sealed class CreateConstraintOperation : IMigrationOperation
     [JsonPropertyName("references_columns")]
     public IReadOnlyList<string>? ReferencesColumns { get; init; }
 
+    public string Describe() => $"create {ConstraintType} constraint '{Name}' on '{Table}'";
+
     public ValidationResult ValidateStructure()
     {
         if (string.IsNullOrWhiteSpace(Table))
