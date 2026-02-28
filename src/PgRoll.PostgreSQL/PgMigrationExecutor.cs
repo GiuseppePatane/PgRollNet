@@ -72,12 +72,44 @@ public sealed class PgMigrationExecutor
 
         _logger.LogInformation("Starting migration '{Name}'", migration.Name);
 
-        foreach (var op in migration.Operations)
+        // Track which operations have been started so we can roll them back if a later one fails.
+        var started = new List<IMigrationOperation>();
+        try
         {
-            if (op.RequiresConcurrentConnection)
-                await ExecuteStartConcurrently(op, migration, snapshot, ct);
-            else
-                await ExecuteStartTransactional(op, migration, snapshot, ct);
+            foreach (var op in migration.Operations)
+            {
+                if (op.RequiresConcurrentConnection)
+                    await ExecuteStartConcurrently(op, migration, snapshot, ct);
+                else
+                    await ExecuteStartTransactional(op, migration, snapshot, ct);
+
+                started.Add(op);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Migration '{Name}' failed during Start after {Count} operation(s). Rolling back.",
+                migration.Name, started.Count);
+
+            foreach (var completedOp in Enumerable.Reverse(started))
+            {
+                try
+                {
+                    if (completedOp.RequiresConcurrentConnection)
+                        await ExecuteRollbackConcurrently(completedOp, migration, snapshot, ct);
+                    else
+                        await ExecuteRollbackTransactional(completedOp, migration, snapshot, ct);
+                }
+                catch (Exception rollbackEx)
+                {
+                    _logger.LogError(rollbackEx,
+                        "Failed to rollback operation '{Op}' during Start cleanup.",
+                        completedOp.GetType().Name);
+                }
+            }
+
+            throw;
         }
 
         var migrationJson = migration.Serialize();
@@ -468,9 +500,14 @@ public sealed class PgMigrationExecutor
         if (op.Default is not null) addColSql.Append($" DEFAULT {op.Default}");
         await ExecAsync(conn, addColSql.ToString(), ct);
 
-        // Create UP trigger
+        // Create UP (and optional DOWN) trigger.
+        // tempColumnAlias exposes the dup column under its final public name so that Down
+        // expressions such as "SUBSTR(full_name, 5)" work naturally.
+        var finalName = op.Name ?? op.Column;
+        var tempAlias = finalName != op.Column ? finalName : null;
         await PgTriggerManager.CreateTriggerAsync(conn, _schemaName, op.Table, op.Column,
-            dupCol, upExpr, versionSchema, ct);
+            dupCol, upExpr, versionSchema, ct,
+            downExpression: op.Down, tempColumnAlias: tempAlias);
 
         // Backfill (uses its own connections)
         await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, ct: ct);
@@ -492,7 +529,6 @@ public sealed class PgMigrationExecutor
         }
 
         // Create version schema view: originals (excluding the altered column) + dup AS finalName
-        var finalName = op.Name ?? op.Column;
         var origCols = OriginalColumnExpressions(snapshot, op.Table)
             .Where(e => !e.Equals(QuoteIdent(op.Column), StringComparison.Ordinal));
         var colExprs = origCols.Append($"{QuoteIdent(dupCol)} AS {QuoteIdent(finalName)}").ToList();

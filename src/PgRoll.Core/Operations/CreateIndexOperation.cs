@@ -23,6 +23,17 @@ public sealed class CreateIndexOperation : IMigrationOperation
 
     public bool RequiresConcurrentConnection => true;
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(Name))
+            return ValidationResult.Failure("Index name is required.");
+        if (string.IsNullOrWhiteSpace(Table))
+            return ValidationResult.Failure("Table name is required.");
+        if (Columns is null || Columns.Count == 0)
+            return ValidationResult.Failure("At least one column is required for an index.");
+        return ValidationResult.Success;
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Name))

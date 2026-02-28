@@ -12,6 +12,11 @@ public sealed class DropTableOperation : IMigrationOperation
     [JsonPropertyName("table")]
     public required string Table { get; init; }
 
+    public ValidationResult ValidateStructure() =>
+        string.IsNullOrWhiteSpace(Table)
+            ? ValidationResult.Failure("Table name is required.")
+            : ValidationResult.Success;
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Table))

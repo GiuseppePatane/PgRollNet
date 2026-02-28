@@ -51,6 +51,17 @@ public sealed class AlterColumnOperation : IMigrationOperation
     /// <summary>Always uses autocommit — backfill uses dataSource connections and Unique may use CONCURRENTLY.</summary>
     public bool RequiresConcurrentConnection => true;
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(Table))
+            return ValidationResult.Failure("Table name is required.");
+        if (string.IsNullOrWhiteSpace(Column))
+            return ValidationResult.Failure("Column name is required.");
+        if (DataType is not null && NotNull == true && Up is null)
+            return ValidationResult.Failure("'up' expression is required when changing data type with NOT NULL.");
+        return ValidationResult.Success;
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Table))

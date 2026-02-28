@@ -8,9 +8,18 @@ public sealed class PgTriggerManager
         $"_pgroll_trigger_{table}_{column}";
 
     /// <summary>
-    /// Creates a BEFORE INSERT OR UPDATE trigger that propagates writes from the base schema
-    /// to the temporary column using the given Up expression, unless the write came via the
-    /// version schema (to avoid infinite recursion).
+    /// Creates a BEFORE INSERT OR UPDATE trigger that propagates writes bidirectionally:
+    /// <list type="bullet">
+    ///   <item>Old-app write (base schema path): <c>tempColumn = upExpression</c></item>
+    ///   <item>New-app write (version-schema path, when <paramref name="downExpression"/> is set):
+    ///         <c>column = downExpression</c></item>
+    /// </list>
+    /// <para>
+    /// When <paramref name="tempColumnAlias"/> is provided the <c>tempColumn</c> is exposed under
+    /// that alias inside the Down expression's <c>FROM (SELECT …) AS _r</c> sub-select, allowing
+    /// the user to write natural expressions such as <c>"SUBSTR(full_name, 5)"</c> instead of the
+    /// internal dup-column name.
+    /// </para>
     /// </summary>
     public static async Task CreateTriggerAsync(
         NpgsqlConnection conn,
@@ -20,11 +29,34 @@ public sealed class PgTriggerManager
         string tempColumn,
         string upExpression,
         string versionSchema,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? downExpression = null,
+        string? tempColumnAlias = null)
     {
         var triggerName = TriggerName(table, column);
         var escapedUpExpr = upExpression.Replace("'", "''");
         var escapedVersionSchema = versionSchema.Replace("'", "''");
+
+        // Build the DOWN branch (only when a down expression is supplied).
+        string downBranch;
+        if (downExpression is not null)
+        {
+            var escapedDownExpr = downExpression.Replace("'", "''");
+            // If the caller supplies an alias (e.g. "full_name" for "_pgroll_dup_name") the
+            // sub-select exposes the dup column under that name so the user can write natural
+            // expressions. Without an alias just use NEW.* directly.
+            var downFrom = tempColumnAlias is not null
+                ? $"SELECT NEW.*, NEW.\"{tempColumn}\" AS \"{tempColumnAlias}\""
+                : "SELECT NEW.*";
+            downBranch = $"""
+                    ELSE
+                        NEW."{column}" = (SELECT {escapedDownExpr} FROM ({downFrom}) AS _r);
+                """;
+        }
+        else
+        {
+            downBranch = string.Empty;
+        }
 
         // Use FROM (SELECT NEW.*) AS _r so that unqualified column names in upExpression
         // (e.g. "UPPER(name)") resolve correctly to NEW.column_name in PL/pgSQL context.
@@ -36,7 +68,7 @@ public sealed class PgTriggerManager
                 SELECT current_setting('search_path', TRUE) INTO _sp;
                 IF _sp IS DISTINCT FROM '{escapedVersionSchema}' THEN
                     NEW."{tempColumn}" = (SELECT {escapedUpExpr} FROM (SELECT NEW.*) AS _r);
-                END IF;
+                {downBranch}END IF;
                 RETURN NEW;
             END;
             $func$

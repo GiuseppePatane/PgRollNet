@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Npgsql;
 using PgRoll.Core.Models;
 using PgRoll.PostgreSQL;
 
@@ -9,33 +8,77 @@ public static class ValidateCommand
 {
     public static Command Build()
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt = new Option<string>("--schema", () => "public", "Target schema name");
-        var fileArg = new Argument<FileInfo>("file", "Path to the migration JSON file");
+        var connectionOpt = new Option<string?>("--connection", "PostgreSQL connection string (required unless --offline)");
+        var schemaOpt     = new Option<string>("--schema", () => "public", "Target schema name");
+        var offlineOpt    = new Option<bool>("--offline", "Validate required fields only, without connecting to the database");
+        var fileArg       = new Argument<FileInfo>("file", "Path to the migration JSON file");
 
         var cmd = new Command("validate", "Validate a migration file without executing it.");
         cmd.AddOption(connectionOpt);
         cmd.AddOption(schemaOpt);
+        cmd.AddOption(offlineOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (connection, schema, file) =>
+        cmd.SetHandler(async (connection, schema, offline, file) =>
         {
-            var json = await File.ReadAllTextAsync(file.FullName);
-            var migration = Migration.Deserialize(json);
+            if (!file.Exists)
+            {
+                Console.Error.WriteLine($"error: file not found: {file.FullName}");
+                Environment.Exit(2);
+                return;
+            }
 
-            var reader = new PgSchemaReader(connection);
-            var snapshot = await reader.ReadSchemaAsync(schema);
+            if (!offline && string.IsNullOrWhiteSpace(connection))
+            {
+                Console.Error.WriteLine("error: --connection is required unless --offline is specified.");
+                Environment.Exit(2);
+                return;
+            }
+
+            var json = await File.ReadAllTextAsync(file.FullName);
+            Migration migration;
+            try
+            {
+                migration = Migration.Deserialize(json);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"error: failed to parse migration JSON — {ex.Message}");
+                Environment.Exit(1);
+                return;
+            }
 
             var errors = new List<string>();
-            foreach (var op in migration.Operations)
+
+            if (offline)
             {
-                var result = op.Validate(snapshot);
-                if (!result.IsValid)
-                    errors.Add($"  [{op.Type}] {result.Error}");
+                // Structural validation only — no DB required
+                foreach (var op in migration.Operations)
+                {
+                    var result = op.ValidateStructure();
+                    if (!result.IsValid)
+                        errors.Add($"  [{op.Type}] {result.Error}");
+                }
+            }
+            else
+            {
+                // Full validation against live schema
+                var reader   = new PgSchemaReader(connection!);
+                var snapshot = await reader.ReadSchemaAsync(schema);
+
+                foreach (var op in migration.Operations)
+                {
+                    var result = op.Validate(snapshot);
+                    if (!result.IsValid)
+                        errors.Add($"  [{op.Type}] {result.Error}");
+                }
             }
 
             if (errors.Count == 0)
-                Console.WriteLine($"Migration '{migration.Name}' is valid.");
+            {
+                var mode = offline ? " (offline)" : "";
+                Console.WriteLine($"Migration '{migration.Name}' is valid{mode}.");
+            }
             else
             {
                 Console.WriteLine($"Migration '{migration.Name}' has {errors.Count} validation error(s):");
@@ -43,7 +86,7 @@ public static class ValidateCommand
                     Console.WriteLine(err);
                 Environment.Exit(1);
             }
-        }, connectionOpt, schemaOpt, fileArg);
+        }, connectionOpt, schemaOpt, offlineOpt, fileArg);
 
         return cmd;
     }

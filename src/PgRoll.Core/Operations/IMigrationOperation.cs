@@ -22,6 +22,12 @@ public interface IMigrationOperation
     ValidationResult Validate(SchemaSnapshot schema);
 
     /// <summary>
+    /// Validates required fields without consulting the database.
+    /// Used for offline validation (no connection needed).
+    /// </summary>
+    ValidationResult ValidateStructure() => ValidationResult.Success;
+
+    /// <summary>
     /// True if StartAsync uses CREATE/DROP INDEX CONCURRENTLY, which requires autocommit.
     /// </summary>
     bool RequiresConcurrentConnection => false;

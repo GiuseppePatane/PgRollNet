@@ -15,6 +15,15 @@ public sealed class DropConstraintOperation : IMigrationOperation
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(Table))
+            return ValidationResult.Failure("Table name is required.");
+        if (string.IsNullOrWhiteSpace(Name))
+            return ValidationResult.Failure("Constraint name is required.");
+        return ValidationResult.Success;
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Table))

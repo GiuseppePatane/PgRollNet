@@ -33,6 +33,25 @@ public sealed class CreateTableOperation : IMigrationOperation
     [JsonPropertyName("columns")]
     public required IReadOnlyList<ColumnDefinition> Columns { get; init; }
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(Table))
+            return ValidationResult.Failure("Table name is required.");
+
+        if (Columns is null || Columns.Count == 0)
+            return ValidationResult.Failure("At least one column is required.");
+
+        foreach (var col in Columns)
+        {
+            if (string.IsNullOrWhiteSpace(col.Name))
+                return ValidationResult.Failure("Column name cannot be empty.");
+            if (string.IsNullOrWhiteSpace(col.Type))
+                return ValidationResult.Failure($"Column '{col.Name}' type cannot be empty.");
+        }
+
+        return ValidationResult.Success;
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Table))

@@ -15,6 +15,15 @@ public sealed class RenameTableOperation : IMigrationOperation
     [JsonPropertyName("to")]
     public required string To { get; init; }
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(From))
+            return ValidationResult.Failure("Source table name ('from') is required.");
+        if (string.IsNullOrWhiteSpace(To))
+            return ValidationResult.Failure("Target table name ('to') is required.");
+        return ValidationResult.Success;
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(From))

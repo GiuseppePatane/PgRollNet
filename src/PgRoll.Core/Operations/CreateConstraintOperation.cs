@@ -35,6 +35,26 @@ public sealed class CreateConstraintOperation : IMigrationOperation
     [JsonPropertyName("references_columns")]
     public IReadOnlyList<string>? ReferencesColumns { get; init; }
 
+    public ValidationResult ValidateStructure()
+    {
+        if (string.IsNullOrWhiteSpace(Table))
+            return ValidationResult.Failure("Table name is required.");
+        if (string.IsNullOrWhiteSpace(Name))
+            return ValidationResult.Failure("Constraint name is required.");
+
+        return ConstraintType switch
+        {
+            "check" when string.IsNullOrWhiteSpace(Check) =>
+                ValidationResult.Failure("'check' expression is required for check constraints."),
+            "unique" when Columns is null || Columns.Count == 0 =>
+                ValidationResult.Failure("'columns' is required for unique constraints."),
+            "foreign_key" when string.IsNullOrWhiteSpace(ReferencesTable) =>
+                ValidationResult.Failure("'references_table' is required for foreign key constraints."),
+            "check" or "unique" or "foreign_key" => ValidationResult.Success,
+            _ => ValidationResult.Failure($"Unknown constraint_type '{ConstraintType}'.")
+        };
+    }
+
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         if (string.IsNullOrWhiteSpace(Table))

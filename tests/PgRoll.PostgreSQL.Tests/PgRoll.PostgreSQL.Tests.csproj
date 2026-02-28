@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PgRoll.Core\PgRoll.Core.csproj" />
     <ProjectReference Include="..\..\src\PgRoll.PostgreSQL\PgRoll.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\src\PgRoll.EntityFrameworkCore\PgRoll.EntityFrameworkCore.csproj" />
   </ItemGroup>
 
   <ItemGroup>
