@@ -19,27 +19,26 @@ public static class ValidateCommand
         {
             if (!file.Exists)
             {
-                Console.Error.WriteLine($"error: file not found: {file.FullName}");
+                await Console.Error.WriteLineAsync($"error: file not found: {file.FullName}");
                 Environment.Exit(2);
                 return;
             }
 
             if (!offline && string.IsNullOrWhiteSpace(connection))
             {
-                Console.Error.WriteLine("error: --connection is required unless --offline is specified.");
+                await Console.Error.WriteLineAsync("error: --connection is required unless --offline is specified.");
                 Environment.Exit(2);
                 return;
             }
 
-            var json = await File.ReadAllTextAsync(file.FullName);
             Migration migration;
             try
             {
-                migration = Migration.Deserialize(json);
+                migration = await Migration.LoadAsync(file.FullName);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"error: failed to parse migration JSON — {ex.Message}");
+                await Console.Error.WriteLineAsync($"error: failed to parse migration file — {ex.Message}");
                 Environment.Exit(1);
                 return;
             }

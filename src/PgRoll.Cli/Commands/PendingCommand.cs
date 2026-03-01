@@ -23,6 +23,8 @@ public static class PendingCommand
             }
 
             var files = dir.GetFiles("*.json")
+                .Concat(dir.GetFiles("*.yaml"))
+                .Concat(dir.GetFiles("*.yml"))
                 .OrderBy(f => f.Name)
                 .ToList();
 

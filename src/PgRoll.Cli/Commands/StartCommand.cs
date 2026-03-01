@@ -17,8 +17,7 @@ public static class StartCommand
 
         cmd.SetHandler(async (dryRun, file, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
-            var json = await File.ReadAllTextAsync(file.FullName);
-            var migration = Migration.Deserialize(json);
+            var migration = await Migration.LoadAsync(file.FullName);
 
             if (dryRun)
             {

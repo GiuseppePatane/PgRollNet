@@ -17,6 +17,8 @@ public static class MigrateCommand
             var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
 
             var migrationFiles = dir.GetFiles("*.json")
+                .Concat(dir.GetFiles("*.yaml"))
+                .Concat(dir.GetFiles("*.yml"))
                 .OrderBy(f => f.Name)
                 .ToList();
 
@@ -42,8 +44,7 @@ public static class MigrateCommand
             Console.WriteLine($"Applying {pending.Count} migration(s)...");
             foreach (var file in pending)
             {
-                var json = await File.ReadAllTextAsync(file.FullName);
-                var migration = Migration.Deserialize(json);
+                var migration = await Migration.LoadAsync(file.FullName);
                 Console.WriteLine($"  Applying '{migration.Name}'...");
                 await executor.StartAsync(migration);
                 await executor.CompleteAsync();
