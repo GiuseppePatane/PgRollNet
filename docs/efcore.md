@@ -81,8 +81,24 @@ The tool automatically resolves NuGet dependencies in both cases using the `.dep
 | `AddForeignKeyOperation` | `create_constraint` type=`foreign_key` |
 | `DropForeignKeyOperation` | `drop_constraint` |
 | `SqlOperation` | `raw_sql` |
+| `InsertDataOperation` | `raw_sql` (INSERT INTO … VALUES …) |
+| `UpdateDataOperation` | `raw_sql` (UPDATE … SET … WHERE …) |
+| `DeleteDataOperation` | `raw_sql` (DELETE FROM … WHERE …) |
+| `EnsureSchemaOperation` | `create_schema` (CREATE SCHEMA IF NOT EXISTS) |
+| `DropSchemaOperation` | `drop_schema` (soft-delete with rename + drop) |
+| `RenameSchemaOperation` *(Npgsql)* | `raw_sql` (ALTER SCHEMA … RENAME TO …) — CLI only¹ |
+| `CreateSequenceOperation` | `raw_sql` (CREATE SEQUENCE … AS … START WITH … INCREMENT BY …) |
+| `AlterSequenceOperation` | `raw_sql` (ALTER SEQUENCE … INCREMENT BY … MINVALUE … MAXVALUE …) |
+| `DropSequenceOperation` | `raw_sql` (DROP SEQUENCE IF EXISTS …) |
+| `RestartSequenceOperation` | `raw_sql` (ALTER SEQUENCE … RESTART [WITH …]) |
+| `RenameSequenceOperation` | `raw_sql` (ALTER SEQUENCE … RENAME TO … [SET SCHEMA …]) |
+| `RenameIndexOperation` | `raw_sql` (ALTER INDEX … RENAME TO …) |
+| `AddPrimaryKeyOperation` | `raw_sql` (ALTER TABLE … ADD CONSTRAINT … PRIMARY KEY (…)) |
+| `DropPrimaryKeyOperation` | `raw_sql` (ALTER TABLE … DROP CONSTRAINT …) |
 
-Operations with no pgroll equivalent (data seeding, sequences, schema ops) are **skipped** and reported in the summary output.
+Operations with no direct equivalent (`AlterDatabaseOperation`, `AlterTableOperation`) are **skipped** and reported in the summary output.
+
+> ¹ `RenameSchemaOperation` is a Npgsql provider-specific operation not present in standard EF Core. It is handled only by the CLI converter (`pgroll efcore convert`) which matches operations by type name at runtime. The `PgRoll.EntityFrameworkCore` library does not handle it (the type does not exist in `Microsoft.EntityFrameworkCore.Relational`).
 
 ### Missing `up`/`down` expressions
 
@@ -152,6 +168,65 @@ After conversion, the generated pgroll JSON will contain three operations in ord
 ```
 
 > **Rollback SQL:** The EF Core `SqlOperation` has no built-in rollback concept. After conversion, you can optionally add a `"rollback_sql"` field manually to each `raw_sql` block in the generated JSON (e.g. `"DROP FUNCTION IF EXISTS update_updated_at()"`). See [raw_sql](./operations#raw_sql) in the Operations Reference.
+
+### Data Seeding
+
+EF Core data seed operations (`InsertData`, `UpdateData`, `DeleteData`) are automatically converted to `raw_sql` operations with the corresponding DML statement.
+
+```csharp
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+    migrationBuilder.InsertData(
+        table: "roles",
+        columns: ["id", "name"],
+        values: new object[,]
+        {
+            { 1, "admin" },
+            { 2, "editor" },
+            { 3, "viewer" }
+        });
+
+    migrationBuilder.UpdateData(
+        table: "roles",
+        keyColumn: "id",
+        keyValue: 1,
+        column: "name",
+        value: "superadmin");
+
+    migrationBuilder.DeleteData(
+        table: "roles",
+        keyColumn: "id",
+        keyValue: 3);
+}
+```
+
+Generates:
+
+```json
+{
+  "operations": [
+    {
+      "type": "raw_sql",
+      "sql": "INSERT INTO \"roles\" (\"id\", \"name\") VALUES\n  (1, 'admin'),\n  (2, 'editor'),\n  (3, 'viewer');"
+    },
+    {
+      "type": "raw_sql",
+      "sql": "UPDATE \"roles\" SET \"name\" = 'superadmin' WHERE \"id\" = 1;"
+    },
+    {
+      "type": "raw_sql",
+      "sql": "DELETE FROM \"roles\" WHERE \"id\" = 3;"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Multiple INSERT rows are combined into a single `VALUES (…), (…)` statement.
+- Multiple UPDATE or DELETE rows produce separate statements in the same `raw_sql` block.
+- Empty operations (0 rows) are silently discarded — no pgroll operation is emitted.
+- `NULL` values are rendered as `NULL`; strings are single-quote escaped; booleans as `true`/`false`.
+- No `rollback_sql` is generated — add it manually if you need rollback capability.
 
 ---
 

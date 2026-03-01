@@ -7,5 +7,22 @@
     <LangVersion>latest</LangVersion>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- Versioning -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+
+    <!-- Package metadata -->
+    <Authors>Giuseppe Patanè</Authors>
+    <Copyright>Copyright © 2025 Giuseppe Patanè</Copyright>
+    <RepositoryUrl>https://github.com/gpatane/pgrool</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/gpatane/pgrool</PackageProjectUrl>
+
+    <!-- Documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1574</NoWarn>
   </PropertyGroup>
 </Project>

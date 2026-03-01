@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <PackageId>PgRoll.Core</PackageId>
+    <Description>Core abstractions and models for pgroll.NET — zero-downtime PostgreSQL schema migrations.</Description>
+    <PackageTags>postgresql;migrations;zero-downtime;pgroll</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

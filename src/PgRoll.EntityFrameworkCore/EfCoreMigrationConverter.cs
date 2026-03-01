@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using PgRoll.Core.Helpers;
 using PgRoll.Core.Operations;
 using PgRollMigration = PgRoll.Core.Models.Migration;
 using EfAddColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation;
@@ -17,8 +18,20 @@ using EfDropUniqueConstraint = Microsoft.EntityFrameworkCore.Migrations.Operatio
 using EfMigrationOperation = Microsoft.EntityFrameworkCore.Migrations.Operations.MigrationOperation;
 using EfRenameColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameColumnOperation;
 using EfRenameIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameIndexOperation;
+using EfDeleteData = Microsoft.EntityFrameworkCore.Migrations.Operations.DeleteDataOperation;
+using EfInsertData = Microsoft.EntityFrameworkCore.Migrations.Operations.InsertDataOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
 using EfSql = Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation;
+using EfUpdateData = Microsoft.EntityFrameworkCore.Migrations.Operations.UpdateDataOperation;
+using EfEnsureSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.EnsureSchemaOperation;
+using EfDropSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSchemaOperation;
+using EfCreateSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateSequenceOperation;
+using EfAlterSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterSequenceOperation;
+using EfDropSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSequenceOperation;
+using EfRestartSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RestartSequenceOperation;
+using EfRenameSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameSequenceOperation;
+using EfAddPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.AddPrimaryKeyOperation;
+using EfDropPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.DropPrimaryKeyOperation;
 
 namespace PgRoll.EntityFrameworkCore;
 
@@ -107,7 +120,10 @@ public static class EfCoreMigrationConverter
                     break;
 
                 case EfRenameIndex ri:
-                    skipped.Add(ri.GetType().Name);
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRenameIndex(ri.Table, ri.Name, ri.NewName)
+                    });
                     break;
 
                 case EfAddCheckConstraint acc:
@@ -168,6 +184,106 @@ public static class EfCoreMigrationConverter
 
                 case EfSql sql:
                     pgrollOps.Add(new RawSqlOperation { Sql = sql.Sql });
+                    break;
+
+                case EfInsertData id:
+                    if (id.Values.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateInsert(
+                                id.Schema, id.Table, id.Columns, id.Values)
+                        });
+                    break;
+
+                case EfUpdateData ud:
+                    if (ud.Values.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateUpdate(
+                                ud.Schema, ud.Table,
+                                ud.KeyColumns, ud.KeyValues,
+                                ud.Columns, ud.Values)
+                        });
+                    break;
+
+                case EfDeleteData dd:
+                    if (dd.KeyValues.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateDelete(
+                                dd.Schema, dd.Table, dd.KeyColumns, dd.KeyValues)
+                        });
+                    break;
+
+                // ── Schema ops ────────────────────────────────────────────────
+
+                case EfEnsureSchema es:
+                    pgrollOps.Add(new CreateSchemaOperation { Schema = es.Name });
+                    break;
+
+                case EfDropSchema ds:
+                    pgrollOps.Add(new DropSchemaOperation { Schema = ds.Name });
+                    break;
+
+                // ── Sequences ─────────────────────────────────────────────────
+
+                case EfCreateSequence cs:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateCreate(
+                            cs.Schema, cs.Name, cs.ClrType,
+                            cs.StartValue, cs.IncrementBy,
+                            cs.MinValue, cs.MaxValue, cs.IsCyclic)
+                    });
+                    break;
+
+                case EfAlterSequence als:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateAlter(
+                            als.Schema, als.Name,
+                            als.IncrementBy, als.MinValue, als.MaxValue, als.IsCyclic)
+                    });
+                    break;
+
+                case EfDropSequence dseq:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateDrop(dseq.Schema, dseq.Name)
+                    });
+                    break;
+
+                case EfRestartSequence rseq:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRestart(rseq.Schema, rseq.Name, rseq.StartValue)
+                    });
+                    break;
+
+                case EfRenameSequence rnseq:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRename(
+                            rnseq.Schema, rnseq.Name, rnseq.NewName, rnseq.NewSchema)
+                    });
+                    break;
+
+                // ── Primary key ───────────────────────────────────────────────
+
+                case EfAddPrimaryKey apk:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateAddPrimaryKey(
+                            apk.Schema, apk.Table, apk.Name, apk.Columns)
+                    });
+                    break;
+
+                case EfDropPrimaryKey dpk:
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateDropPrimaryKey(
+                            dpk.Schema, dpk.Table, dpk.Name)
+                    });
                     break;
 
                 default:

@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test (Core)
+        run: dotnet test tests/PgRoll.Core.Tests/ --no-build --configuration Release --verbosity normal
+
+      - name: Test (EF Core)
+        run: dotnet test tests/PgRoll.EntityFrameworkCore.Tests/ --no-build --configuration Release --verbosity normal
+
+      - name: Test (PostgreSQL integration)
+        run: dotnet test tests/PgRoll.PostgreSQL.Tests/ --no-build --configuration Release --verbosity normal

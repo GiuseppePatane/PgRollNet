@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <PackageId>PgRoll.PostgreSQL</PackageId>
+    <Description>PostgreSQL implementation for pgroll.NET. Provides PgMigrationExecutor, PgStateStore and PgSchemaReader.</Description>
+    <PackageTags>postgresql;migrations;zero-downtime;pgroll;npgsql</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

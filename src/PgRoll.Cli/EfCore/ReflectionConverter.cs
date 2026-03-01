@@ -1,3 +1,4 @@
+using PgRoll.Core.Helpers;
 using PgRoll.Core.Models;
 using PgRoll.Core.Operations;
 
@@ -156,9 +157,149 @@ public static class ReflectionConverter
                     });
                     break;
 
-                // RenameIndexOperation: no pgroll equivalent
+                case "InsertDataOperation":
+                {
+                    var values = Matrix(op, "Values");
+                    if (values.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateInsert(
+                                Str(op, "Schema"), Str(op, "Table") ?? "",
+                                StrArr(op, "Columns"), values)
+                        });
+                    break;
+                }
+
+                case "UpdateDataOperation":
+                {
+                    var values = Matrix(op, "Values");
+                    if (values.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateUpdate(
+                                Str(op, "Schema"), Str(op, "Table") ?? "",
+                                StrArr(op, "KeyColumns"), Matrix(op, "KeyValues"),
+                                StrArr(op, "Columns"), values)
+                        });
+                    break;
+                }
+
+                case "DeleteDataOperation":
+                {
+                    var keyValues = Matrix(op, "KeyValues");
+                    if (keyValues.GetLength(0) > 0)
+                        pgrollOps.Add(new RawSqlOperation
+                        {
+                            Sql = DataSeedingSqlGenerator.GenerateDelete(
+                                Str(op, "Schema"), Str(op, "Table") ?? "",
+                                StrArr(op, "KeyColumns"), keyValues)
+                        });
+                    break;
+                }
+
+                // ── Schema ops ────────────────────────────────────────────────
+
+                case "EnsureSchemaOperation":
+                    pgrollOps.Add(new CreateSchemaOperation
+                    {
+                        Schema = Str(op, "Name") ?? ""
+                    });
+                    break;
+
+                case "DropSchemaOperation":
+                    pgrollOps.Add(new DropSchemaOperation
+                    {
+                        Schema = Str(op, "Name") ?? ""
+                    });
+                    break;
+
+                // Npgsql-specific — not in standard EF Core, handled via reflection only
+                case "RenameSchemaOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRenameSchema(
+                            Str(op, "Name") ?? "", Str(op, "NewName") ?? "")
+                    });
+                    break;
+
+                // ── Sequences ─────────────────────────────────────────────────
+
+                case "CreateSequenceOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateCreate(
+                            Str(op, "Schema"), Str(op, "Name") ?? "", ClrType(op),
+                            Long(op, "StartValue"), Int(op, "IncrementBy"),
+                            NullableLong(op, "MinValue"), NullableLong(op, "MaxValue"),
+                            Bool(op, "IsCyclic"))
+                    });
+                    break;
+
+                case "AlterSequenceOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateAlter(
+                            Str(op, "Schema"), Str(op, "Name") ?? "",
+                            Int(op, "IncrementBy"),
+                            NullableLong(op, "MinValue"), NullableLong(op, "MaxValue"),
+                            Bool(op, "IsCyclic"))
+                    });
+                    break;
+
+                case "DropSequenceOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateDrop(
+                            Str(op, "Schema"), Str(op, "Name") ?? "")
+                    });
+                    break;
+
+                case "RestartSequenceOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRestart(
+                            Str(op, "Schema"), Str(op, "Name") ?? "",
+                            NullableLong(op, "StartValue"))
+                    });
+                    break;
+
+                case "RenameSequenceOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRename(
+                            Str(op, "Schema"), Str(op, "Name") ?? "",
+                            Str(op, "NewName"), Str(op, "NewSchema"))
+                    });
+                    break;
+
+                // ── Index ─────────────────────────────────────────────────────
+
                 case "RenameIndexOperation":
-                    skipped.Add(op.GetType().Name);
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateRenameIndex(
+                            Str(op, "Table"), Str(op, "Name") ?? "", Str(op, "NewName") ?? "")
+                    });
+                    break;
+
+                // ── Primary key ───────────────────────────────────────────────
+
+                case "AddPrimaryKeyOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateAddPrimaryKey(
+                            Str(op, "Schema"), Str(op, "Table") ?? "",
+                            Str(op, "Name") ?? "", StrArr(op, "Columns"))
+                    });
+                    break;
+
+                case "DropPrimaryKeyOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = SequenceSqlGenerator.GenerateDropPrimaryKey(
+                            Str(op, "Schema"), Str(op, "Table") ?? "",
+                            Str(op, "Name") ?? "")
+                    });
                     break;
 
                 default:
@@ -327,4 +468,19 @@ public static class ReflectionConverter
             _ => []
         };
     }
+
+    private static int Int(object o, string prop) =>
+        o.GetType().GetProperty(prop)?.GetValue(o) is int v ? v : 0;
+
+    private static long Long(object o, string prop) =>
+        o.GetType().GetProperty(prop)?.GetValue(o) is long v ? v : 0L;
+
+    private static long? NullableLong(object o, string prop)
+    {
+        var val = o.GetType().GetProperty(prop)?.GetValue(o);
+        return val is long v ? v : null;
+    }
+
+    private static object?[,] Matrix(object o, string prop) =>
+        o.GetType().GetProperty(prop)?.GetValue(o) as object?[,] ?? new object?[0, 0];
 }

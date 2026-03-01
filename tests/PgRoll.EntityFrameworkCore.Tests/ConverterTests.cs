@@ -9,6 +9,7 @@ using EfAddCheckConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations
 using EfAddColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation;
 using EfAddForeignKey = Microsoft.EntityFrameworkCore.Migrations.Operations.AddForeignKeyOperation;
 using EfAddPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.AddPrimaryKeyOperation;
+using EfDropPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.DropPrimaryKeyOperation;
 using EfAddUniqueConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.AddUniqueConstraintOperation;
 using EfAlterColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterColumnOperation;
 // ColumnOperation is abstract; use AddColumnOperation for OldColumn in tests
@@ -20,7 +21,17 @@ using EfDropForeignKey = Microsoft.EntityFrameworkCore.Migrations.Operations.Dro
 using EfDropIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.DropIndexOperation;
 using EfDropTable = Microsoft.EntityFrameworkCore.Migrations.Operations.DropTableOperation;
 using EfDropUniqueConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.DropUniqueConstraintOperation;
+using EfDeleteData = Microsoft.EntityFrameworkCore.Migrations.Operations.DeleteDataOperation;
+using EfEnsureSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.EnsureSchemaOperation;
+using EfDropSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSchemaOperation;
+using EfCreateSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateSequenceOperation;
+using EfAlterSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterSequenceOperation;
+using EfDropSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSequenceOperation;
+using EfRestartSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RestartSequenceOperation;
+using EfRenameSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameSequenceOperation;
+using EfAlterDatabase = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterDatabaseOperation;
 using EfInsertData = Microsoft.EntityFrameworkCore.Migrations.Operations.InsertDataOperation;
+using EfUpdateData = Microsoft.EntityFrameworkCore.Migrations.Operations.UpdateDataOperation;
 using EfRenameColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameColumnOperation;
 using EfRenameIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameIndexOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
@@ -460,6 +471,203 @@ public class ConverterTests
         dc.Name.Should().Be("fk_orders_users");
     }
 
+    // ── Schema ops ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Convert_EnsureSchema_MapsToCreateSchemaOperation()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfEnsureSchema { Name = "audit" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var cs = result.Migration.Operations[0].Should().BeOfType<CreateSchemaOperation>().Subject;
+        cs.Schema.Should().Be("audit");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_DropSchema_MapsToDropSchemaOperation()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfDropSchema { Name = "audit" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var ds = result.Migration.Operations[0].Should().BeOfType<DropSchemaOperation>().Subject;
+        ds.Schema.Should().Be("audit");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    // ── Sequences ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Convert_CreateSequence_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfCreateSequence
+            {
+                Name = "order_seq", Schema = null,
+                ClrType = typeof(long),
+                StartValue = 1000, IncrementBy = 1,
+                MinValue = 1, MaxValue = null, IsCyclic = false
+            }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("CREATE SEQUENCE");
+        raw.Sql.Should().Contain("\"order_seq\"");
+        raw.Sql.Should().Contain("START WITH 1000");
+        raw.Sql.Should().Contain("INCREMENT BY 1");
+        raw.Sql.Should().Contain("MINVALUE 1");
+        raw.Sql.Should().Contain("NO MAXVALUE");
+        raw.Sql.Should().Contain("NO CYCLE");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_CreateSequence_WithSchema_QualifiesName()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfCreateSequence
+            {
+                Name = "seq", Schema = "billing",
+                ClrType = typeof(int),
+                StartValue = 1, IncrementBy = 1,
+                IsCyclic = false
+            }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("\"billing\".\"seq\"");
+        raw.Sql.Should().Contain("AS integer");
+    }
+
+    [Fact]
+    public void Convert_AlterSequence_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfAlterSequence
+            {
+                Name = "order_seq", Schema = null,
+                IncrementBy = 5, MinValue = 1, MaxValue = 9999, IsCyclic = true
+            }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("ALTER SEQUENCE");
+        raw.Sql.Should().Contain("INCREMENT BY 5");
+        raw.Sql.Should().Contain("MAXVALUE 9999");
+        raw.Sql.Should().Contain("CYCLE");
+    }
+
+    [Fact]
+    public void Convert_DropSequence_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfDropSequence { Name = "old_seq", Schema = null }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("DROP SEQUENCE IF EXISTS");
+        raw.Sql.Should().Contain("\"old_seq\"");
+    }
+
+    [Fact]
+    public void Convert_RestartSequence_WithValue_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfRestartSequence { Name = "order_seq", Schema = null, StartValue = 500 }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("RESTART WITH 500");
+    }
+
+    [Fact]
+    public void Convert_RestartSequence_NoValue_MapsToRestart()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfRestartSequence { Name = "order_seq", Schema = null }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("RESTART;");
+        raw.Sql.Should().NotContain("RESTART WITH");
+    }
+
+    [Fact]
+    public void Convert_RenameSequence_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfRenameSequence { Name = "old_seq", Schema = null, NewName = "new_seq", NewSchema = null }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("RENAME TO");
+        raw.Sql.Should().Contain("new_seq");
+    }
+
+    // ── Primary key ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Convert_AddPrimaryKey_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfAddPrimaryKey
+            {
+                Table = "orders", Schema = null,
+                Name = "pk_orders", Columns = ["id"]
+            }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("ALTER TABLE \"orders\" ADD CONSTRAINT \"pk_orders\" PRIMARY KEY (\"id\");");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_AddPrimaryKey_Composite_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfAddPrimaryKey
+            {
+                Table = "order_items", Schema = null,
+                Name = "pk_order_items", Columns = ["order_id", "item_id"]
+            }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("\"order_id\", \"item_id\"");
+    }
+
+    [Fact]
+    public void Convert_DropPrimaryKey_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfDropPrimaryKey { Table = "orders", Schema = null, Name = "pk_orders" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("ALTER TABLE \"orders\" DROP CONSTRAINT \"pk_orders\";");
+        result.Skipped.Should().BeEmpty();
+    }
+
     // ── SqlOperation → raw_sql ────────────────────────────────────────────────
 
     [Fact]
@@ -561,9 +769,10 @@ public class ConverterTests
     [Fact]
     public void Convert_SkipsUnsupported()
     {
+        // AlterDatabaseOperation (database-level settings) has no pgroll equivalent
         var result = EfCoreMigrationConverter.Convert("m1",
         [
-            new EfInsertData { Table = "seed", Schema = null, Columns = [], Values = new object[0, 0] },
+            new EfAlterDatabase(),
             new EfCreateTable
             {
                 Name = "t",
@@ -571,20 +780,251 @@ public class ConverterTests
             }
         ]);
 
-        result.Skipped.Should().ContainSingle().Which.Should().Be("InsertDataOperation");
+        result.Skipped.Should().ContainSingle().Which.Should().Be("AlterDatabaseOperation");
         result.Migration.Operations.Should().HaveCount(1);
     }
 
     [Fact]
-    public void Convert_SkipsRenameIndex()
+    public void Convert_RenameIndex_MapsToRawSql()
     {
         var result = EfCoreMigrationConverter.Convert("m1",
         [
-            new EfRenameIndex { Table = "t", Name = "ix_old", NewName = "ix_new" }
+            new EfRenameIndex { Table = "users", Name = "ix_old", NewName = "ix_new" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("ALTER INDEX");
+        raw.Sql.Should().Contain("ix_old");
+        raw.Sql.Should().Contain("ix_new");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    // ── Data seeding: InsertDataOperation ────────────────────────────────────
+
+    [Fact]
+    public void Convert_InsertData_SingleRow_GeneratesInsertSql()
+    {
+        var values = new object[1, 2] { { 1, "Alice" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "users", Schema = null, Columns = ["id", "name"], Values = values }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("INSERT INTO \"users\" (\"id\", \"name\") VALUES");
+        raw.Sql.Should().Contain("1,");
+        raw.Sql.Should().Contain("'Alice'");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_InsertData_MultipleRows_SingleStatement()
+    {
+        var values = new object[2, 2] { { 1, "Alice" }, { 2, "Bob" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "users", Schema = null, Columns = ["id", "name"], Values = values }
+        ]);
+
+        // All rows in a single raw_sql, not two separate operations
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("'Alice'");
+        raw.Sql.Should().Contain("'Bob'");
+    }
+
+    [Fact]
+    public void Convert_InsertData_WithSchema_QualifiesTable()
+    {
+        var values = new object[1, 1] { { 42 } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "settings", Schema = "config", Columns = ["id"], Values = values }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("\"config\".\"settings\"");
+    }
+
+    [Fact]
+    public void Convert_InsertData_NullValues_EmittedAsNull()
+    {
+        var values = new object[1, 2] { { 1, DBNull.Value } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "t", Schema = null, Columns = ["id", "note"], Values = values }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("NULL");
+    }
+
+    [Fact]
+    public void Convert_InsertData_StringWithQuotes_EscapedCorrectly()
+    {
+        var values = new object[1, 1] { { "it's a test" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "t", Schema = null, Columns = ["note"], Values = values }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("'it''s a test'");
+    }
+
+    [Fact]
+    public void Convert_InsertData_EmptyRows_ProducesNoOperation()
+    {
+        // EF Core can emit an InsertDataOperation with 0 rows during migrations — should be silently ignored
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfInsertData { Table = "t", Schema = null, Columns = [], Values = new object[0, 0] }
         ]);
 
         result.Migration.Operations.Should().BeEmpty();
-        result.Skipped.Should().ContainSingle().Which.Should().Be("RenameIndexOperation");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    // ── Data seeding: UpdateDataOperation ────────────────────────────────────
+
+    [Fact]
+    public void Convert_UpdateData_GeneratesUpdateSql()
+    {
+        var keyValues = new object[1, 1] { { 1 } };
+        var values = new object[1, 1] { { "Alice Updated" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfUpdateData
+            {
+                Table = "users", Schema = null,
+                KeyColumns = ["id"], KeyValues = keyValues,
+                Columns = ["name"], Values = values
+            }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("UPDATE \"users\" SET \"name\" = 'Alice Updated' WHERE \"id\" = 1;");
+    }
+
+    [Fact]
+    public void Convert_UpdateData_MultipleRows_MultipleStatements()
+    {
+        var keyValues = new object[2, 1] { { 1 }, { 2 } };
+        var values = new object[2, 1] { { "A" }, { "B" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfUpdateData
+            {
+                Table = "t", Schema = null,
+                KeyColumns = ["id"], KeyValues = keyValues,
+                Columns = ["name"], Values = values
+            }
+        ]);
+
+        // One raw_sql block with two UPDATE statements
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("'A'");
+        raw.Sql.Should().Contain("'B'");
+        raw.Sql.Should().Contain("WHERE \"id\" = 1");
+        raw.Sql.Should().Contain("WHERE \"id\" = 2");
+    }
+
+    // ── Data seeding: DeleteDataOperation ────────────────────────────────────
+
+    [Fact]
+    public void Convert_DeleteData_GeneratesDeleteSql()
+    {
+        var keyValues = new object[1, 1] { { 99 } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfDeleteData { Table = "users", Schema = null, KeyColumns = ["id"], KeyValues = keyValues }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("DELETE FROM \"users\" WHERE \"id\" = 99;");
+    }
+
+    [Fact]
+    public void Convert_DeleteData_CompositeKey_GeneratesAndClause()
+    {
+        var keyValues = new object[1, 2] { { "US", "CA" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfDeleteData { Table = "regions", Schema = null, KeyColumns = ["country", "state"], KeyValues = keyValues }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("WHERE \"country\" = 'US' AND \"state\" = 'CA'");
+    }
+
+    // ── Data seeding: mixed with DDL ──────────────────────────────────────────
+
+    [Fact]
+    public void Convert_DataSeedingWithDdl_PreservesOperationOrder()
+    {
+        var values = new object[1, 2] { { 1, "admin" } };
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfCreateTable
+            {
+                Name = "roles",
+                Columns = { new EfAddColumn { Name = "id", ClrType = typeof(int), Table = "roles", IsNullable = false } }
+            },
+            new EfInsertData { Table = "roles", Schema = null, Columns = ["id", "name"], Values = values }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(2);
+        result.Migration.Operations[0].Should().BeOfType<CreateTableOperation>();
+        result.Migration.Operations[1].Should().BeOfType<RawSqlOperation>()
+            .Which.Sql.Should().Contain("INSERT INTO");
+    }
+
+    [Fact]
+    public void Convert_DataSeedingJson_SerializesCorrectly()
+    {
+        var values = new object[1, 2] { { 1, "admin" } };
+        var result = EfCoreMigrationConverter.Convert("seed_roles",
+        [
+            new EfInsertData { Table = "roles", Schema = null, Columns = ["id", "name"], Values = values }
+        ]);
+
+        var json = result.Migration.Serialize();
+        json.Should().Contain("\"type\":\"raw_sql\"");
+        json.Should().Contain("\"sql\":");
+        json.Should().Contain("INSERT INTO");
+    }
+
+    // ── DataSeedingSqlGenerator unit tests ────────────────────────────────────
+
+    [Fact]
+    public void Generator_FormatValue_Bool_EmitsLiteral()
+    {
+        PgRoll.Core.Helpers.DataSeedingSqlGenerator
+            .FormatValue(true).Should().Be("true");
+        PgRoll.Core.Helpers.DataSeedingSqlGenerator
+            .FormatValue(false).Should().Be("false");
+    }
+
+    [Fact]
+    public void Generator_FormatValue_Guid_Quoted()
+    {
+        var g = Guid.Parse("12345678-1234-1234-1234-123456789012");
+        PgRoll.Core.Helpers.DataSeedingSqlGenerator
+            .FormatValue(g).Should().Be($"'{g}'");
+    }
+
+    [Fact]
+    public void Generator_FormatValue_Null_EmitsNull()
+    {
+        PgRoll.Core.Helpers.DataSeedingSqlGenerator
+            .FormatValue(null).Should().Be("NULL");
+        PgRoll.Core.Helpers.DataSeedingSqlGenerator
+            .FormatValue(DBNull.Value).Should().Be("NULL");
     }
 
     // ── TypeMapper ────────────────────────────────────────────────────────────

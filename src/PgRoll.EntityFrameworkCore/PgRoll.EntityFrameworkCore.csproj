@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <PackageId>PgRoll.EntityFrameworkCore</PackageId>
+    <Description>EF Core integration for pgroll.NET. Converts EF Core migrations to pgroll JSON format.</Description>
+    <PackageTags>postgresql;migrations;zero-downtime;pgroll;efcore;entity-framework</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
