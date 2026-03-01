@@ -1,7 +1,10 @@
 using System.CommandLine;
+using System.CommandLine.Builder;
+using System.CommandLine.Parsing;
 using PgRoll.Cli;
 using PgRoll.Cli.Commands;
 using PgRoll.Core.Errors;
+using Npgsql;
 
 var g = new GlobalOptions();
 var rootCmd = new RootCommand("pgroll-net — zero-downtime PostgreSQL schema migrations for .NET");
@@ -25,18 +28,22 @@ rootCmd.AddCommand(PullCommand.Build(g));
 rootCmd.AddCommand(EfCoreCommand.Build());
 rootCmd.AddCommand(BaselineCommand.Build(g));
 rootCmd.AddCommand(LatestCommand.Build(g));
+rootCmd.AddCommand(NewCommand.Build());
 
-try
-{
-    return await rootCmd.InvokeAsync(args);
-}
-catch (PgRollException ex)
-{
-    Console.Error.WriteLine($"Error: {ex.Message}");
-    return 1;
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine($"Unexpected error: {ex.Message}");
-    return 2;
-}
+var parser = new CommandLineBuilder(rootCmd)
+    .UseDefaults()
+    .UseExceptionHandler((ex, ctx) =>
+    {
+        var message = ex switch
+        {
+            PgRollException e           => e.Message,
+            PostgresException e         => $"PostgreSQL error ({e.SqlState}): {e.MessageText}",
+            InvalidOperationException e => e.Message,
+            _                           => $"{ex.GetType().Name}: {ex.Message}"
+        };
+        Console.Error.WriteLine($"Error: {message}");
+        ctx.ExitCode = 1;
+    })
+    .Build();
+
+return await parser.InvokeAsync(args);
