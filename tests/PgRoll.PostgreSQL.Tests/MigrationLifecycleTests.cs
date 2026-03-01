@@ -246,10 +246,11 @@ public class MigrationLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
             """);
 
         await _executor.StartAsync(migration);
-        // start is no-op — column still exists
-        (await ColumnExistsAsync("widgets", "old_col")).Should().BeTrue();
+        // Start drops the column immediately
+        (await ColumnExistsAsync("widgets", "old_col")).Should().BeFalse();
 
         await _executor.CompleteAsync();
+        // Complete is a no-op — column was already dropped in Start
         (await ColumnExistsAsync("widgets", "old_col")).Should().BeFalse();
     }
 
@@ -273,9 +274,12 @@ public class MigrationLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
             """);
 
         await _executor.StartAsync(migration);
-        (await ColumnExistsAsync("orders", "old_field")).Should().BeTrue(); // start = no-op
+        // Start renames the column immediately
+        (await ColumnExistsAsync("orders", "old_field")).Should().BeFalse();
+        (await ColumnExistsAsync("orders", "new_field")).Should().BeTrue();
 
         await _executor.CompleteAsync();
+        // Complete is a no-op — column was already renamed in Start
         (await ColumnExistsAsync("orders", "old_field")).Should().BeFalse();
         (await ColumnExistsAsync("orders", "new_field")).Should().BeTrue();
     }
@@ -349,9 +353,11 @@ public class MigrationLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
             """);
 
         await _executor.StartAsync(migration);
-        (await IndexExistsAsync("idx_specs_code")).Should().BeTrue(); // start = no-op
+        // Start drops the index immediately
+        (await IndexExistsAsync("idx_specs_code")).Should().BeFalse();
 
         await _executor.CompleteAsync();
+        // Complete is a no-op — index was already dropped in Start
         (await IndexExistsAsync("idx_specs_code")).Should().BeFalse();
     }
 

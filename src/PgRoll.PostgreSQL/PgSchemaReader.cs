@@ -68,7 +68,7 @@ public sealed class PgSchemaReader
         const string sql = """
             SELECT
                 c.column_name,
-                c.data_type,
+                pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
                 c.is_nullable = 'YES',
                 c.column_default,
                 COALESCE(
@@ -85,6 +85,11 @@ public sealed class PgSchemaReader
                 ) AS is_pk,
                 c.ordinal_position
             FROM information_schema.columns c
+            JOIN pg_catalog.pg_attribute a
+              ON a.attrelid = (SELECT oid FROM pg_catalog.pg_class
+                               WHERE relname = c.table_name
+                                 AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = c.table_schema))
+             AND a.attname = c.column_name
             WHERE c.table_schema = $1
               AND c.table_name = $2
             ORDER BY c.ordinal_position

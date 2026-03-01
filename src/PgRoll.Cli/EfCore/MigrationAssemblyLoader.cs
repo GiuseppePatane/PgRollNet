@@ -41,7 +41,7 @@ public sealed class MigrationAssemblyLoader : IDisposable
 
         var migrationTypes = assembly.GetTypes()
             .Where(t => !t.IsAbstract && IsMigrationType(t))
-            .OrderBy(t => t.Name)
+            .OrderBy(t => GetMigrationId(t) ?? t.Name)   // sort by timestamp-prefixed ID, not class name
             .ToList();
 
         var result = new List<LoadedMigration>(migrationTypes.Count);
@@ -109,6 +109,25 @@ public sealed class MigrationAssemblyLoader : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Reads the <c>[Migration("20xxxxxx_Name")]</c> attribute Id (the EF Core timestamp key)
+    /// used to establish the canonical apply order, regardless of class name.
+    /// Returns null if the attribute is absent (should never happen for a real EF Core migration).
+    /// </summary>
+    private static string? GetMigrationId(Type type)
+    {
+        foreach (var attr in type.GetCustomAttributesData())
+        {
+            if (attr.AttributeType.Name == "MigrationAttribute" &&
+                attr.AttributeType.Namespace == "Microsoft.EntityFrameworkCore.Migrations" &&
+                attr.ConstructorArguments.Count > 0)
+            {
+                return attr.ConstructorArguments[0].Value as string;
+            }
+        }
+        return null;
     }
 
     public void Dispose()

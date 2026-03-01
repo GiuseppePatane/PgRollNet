@@ -322,6 +322,10 @@ public static class ReflectionConverter
         var pkObj    = Obj(op, "PrimaryKey");
         var pkCols   = pkObj is not null ? StrArr(pkObj, "Columns") : [];
 
+        // For composite PKs (> 1 column) we emit the PK as a separate raw_sql after the table,
+        // because pgroll's create_table only supports single-column PRIMARY KEY inline.
+        var isCompositePk = pkCols.Count > 1;  // IReadOnlyList<string>.Count
+
         var columns = List(op, "Columns")
             .Select(c => new ColumnDefinition
             {
@@ -329,11 +333,22 @@ public static class ReflectionConverter
                 Type       = MapType(Str(c, "ColumnType"), ClrType(c)),
                 Nullable   = Bool(c, "IsNullable"),
                 Default    = Str(c, "DefaultValueSql"),
-                PrimaryKey = pkCols.Contains(Str(c, "Name") ?? "")
+                PrimaryKey = !isCompositePk && pkCols.Contains(Str(c, "Name") ?? "")
             })
             .ToList();
 
         result.Add(new CreateTableOperation { Table = tableName, Columns = columns });
+
+        // Emit composite PK as raw_sql ADD CONSTRAINT PRIMARY KEY (col1, col2, ...)
+        if (isCompositePk && pkObj is not null)
+        {
+            var pkName = Str(pkObj, "Name") ?? $"PK_{tableName}";
+            var schema = Str(pkObj, "Schema");
+            result.Add(new RawSqlOperation
+            {
+                Sql = SequenceSqlGenerator.GenerateAddPrimaryKey(schema, tableName, pkName, pkCols)
+            });
+        }
 
         foreach (var uc in List(op, "UniqueConstraints"))
             result.Add(new CreateConstraintOperation

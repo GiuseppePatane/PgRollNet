@@ -25,8 +25,11 @@ public sealed class PgVersionSchemaManager
         var colList = string.Join(", ", columnExpressions);
 
         await ExecAsync(conn, $"""CREATE SCHEMA IF NOT EXISTS "{versionSchema}" """, ct);
+        // DROP + CREATE instead of CREATE OR REPLACE: PostgreSQL disallows replacing a view when
+        // column names change (e.g. multiple alter_column ops on the same table in one migration).
+        await ExecAsync(conn, $"""DROP VIEW IF EXISTS "{versionSchema}"."{tableName}" CASCADE""", ct);
         await ExecAsync(conn, $"""
-            CREATE OR REPLACE VIEW "{versionSchema}"."{tableName}" AS
+            CREATE VIEW "{versionSchema}"."{tableName}" AS
             SELECT {colList} FROM "{baseSchema}"."{tableName}"
             """, ct);
     }

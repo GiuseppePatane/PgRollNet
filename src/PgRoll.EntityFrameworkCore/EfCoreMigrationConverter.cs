@@ -318,13 +318,17 @@ public static class EfCoreMigrationConverter
     {
         var pkColumns = ct.PrimaryKey?.Columns ?? [];
 
+        // For composite PKs (> 1 column) we emit the PK as a separate raw_sql after the table,
+        // because pgroll's create_table only supports single-column PRIMARY KEY inline.
+        var isCompositePk = pkColumns.Length > 1;
+
         var columns = ct.Columns.Select(c => new ColumnDefinition
         {
             Name = c.Name,
             Type = EfCoreTypeMapper.MapColumnType(c.ColumnType, c.ClrType),
             Nullable = c.IsNullable,
             Default = c.DefaultValueSql,
-            PrimaryKey = pkColumns.Contains(c.Name)
+            PrimaryKey = !isCompositePk && pkColumns.Contains(c.Name)
         }).ToList();
 
         result.Add(new CreateTableOperation
@@ -332,6 +336,16 @@ public static class EfCoreMigrationConverter
             Table = ct.Name,
             Columns = columns
         });
+
+        // Emit composite PK as raw_sql ADD CONSTRAINT PRIMARY KEY (col1, col2, ...)
+        if (isCompositePk && ct.PrimaryKey is not null)
+        {
+            result.Add(new RawSqlOperation
+            {
+                Sql = SequenceSqlGenerator.GenerateAddPrimaryKey(
+                    ct.PrimaryKey.Schema, ct.Name, ct.PrimaryKey.Name, ct.PrimaryKey.Columns)
+            });
+        }
 
         foreach (var uc in ct.UniqueConstraints)
         {

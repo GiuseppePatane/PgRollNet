@@ -155,16 +155,19 @@ public class ConstraintLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
             """);
 
         await _executor.StartAsync(migration);
-        // Start is no-op — constraint still there
-        (await ConstraintExistsAsync("drop_chk", "chk_val")).Should().BeTrue();
+        // Start drops the constraint immediately (safe: old apps still work without FK enforcement)
+        (await ConstraintExistsAsync("drop_chk", "chk_val")).Should().BeFalse();
 
         await _executor.CompleteAsync();
+        // Complete is a no-op — constraint was already dropped in Start
         (await ConstraintExistsAsync("drop_chk", "chk_val")).Should().BeFalse();
     }
 
     [Fact]
-    public async Task DropConstraint_StartRollback_ConstraintPreserved()
+    public async Task DropConstraint_StartRollback_ConstraintGone()
     {
+        // drop_constraint drops immediately in Start (like Go pgroll).
+        // Rollback cannot restore the constraint definition, so it is a no-op.
         await ExecSqlAsync("""
             CREATE TABLE drop_rb (id serial PRIMARY KEY, n int,
               CONSTRAINT chk_n CHECK (n >= 0))
@@ -184,7 +187,8 @@ public class ConstraintLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
         await _executor.StartAsync(migration);
         await _executor.RollbackAsync();
 
-        (await ConstraintExistsAsync("drop_rb", "chk_n")).Should().BeTrue();
+        // Constraint was dropped in Start and cannot be restored — Rollback is a no-op.
+        (await ConstraintExistsAsync("drop_rb", "chk_n")).Should().BeFalse();
     }
 
     // ── rename_constraint ─────────────────────────────────────────────────────

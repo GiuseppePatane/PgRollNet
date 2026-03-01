@@ -98,23 +98,26 @@ public sealed class PgMigrationExecutor
         if (active is not null)
             throw new MigrationAlreadyActiveError(active.Name);
 
-        var snapshot = await _schemaReader.ReadSchemaAsync(_schemaName, ct);
-
-        foreach (var op in migration.Operations)
-        {
-            var result = op.Validate(snapshot);
-            if (!result.IsValid)
-                throw new InvalidMigrationError(result.Error!);
-        }
-
         _logger.LogInformation("Starting migration '{Name}'", migration.Name);
 
         // Track which operations have been started so we can roll them back if a later one fails.
+        // We validate each operation against a fresh snapshot read just before executing it —
+        // this lets multi-op migrations work correctly when one op creates a table that a later
+        // op in the same migration references (e.g. create_table + create_constraint in initial_create).
         var started = new List<IMigrationOperation>();
+        SchemaSnapshot? lastSnapshot = null;
         try
         {
             foreach (var op in migration.Operations)
             {
+                // Read a fresh snapshot so this op sees objects created by prior ops.
+                var snapshot = await _schemaReader.ReadSchemaAsync(_schemaName, ct);
+                lastSnapshot = snapshot;
+
+                var result = op.Validate(snapshot);
+                if (!result.IsValid)
+                    throw new InvalidMigrationError(result.Error!);
+
                 if (op.RequiresConcurrentConnection)
                     await ExecuteStartConcurrently(op, migration, snapshot, ct);
                 else
@@ -129,14 +132,17 @@ public sealed class PgMigrationExecutor
                 "Migration '{Name}' failed during Start after {Count} operation(s). Rolling back.",
                 migration.Name, started.Count);
 
+            // Use the last known snapshot for rollback (best-effort — avoids another read on error path)
+            var rollbackSnapshot = lastSnapshot ?? await _schemaReader.ReadSchemaAsync(_schemaName, ct);
+
             foreach (var completedOp in Enumerable.Reverse(started))
             {
                 try
                 {
                     if (completedOp.RequiresConcurrentConnection)
-                        await ExecuteRollbackConcurrently(completedOp, migration, snapshot, ct);
+                        await ExecuteRollbackConcurrently(completedOp, migration, rollbackSnapshot, ct);
                     else
-                        await ExecuteRollbackTransactional(completedOp, migration, snapshot, ct);
+                        await ExecuteRollbackTransactional(completedOp, migration, rollbackSnapshot, ct);
                 }
                 catch (Exception rollbackEx)
                 {
@@ -345,13 +351,13 @@ public sealed class PgMigrationExecutor
             DropTableOperation o => StartDropTable(o, conn, ct),
             RenameTableOperation _ => Task.CompletedTask,
             AddColumnOperation o => StartAddColumn(o, conn, migration, snapshot, ct),
-            DropColumnOperation _ => Task.CompletedTask,
-            RenameColumnOperation _ => Task.CompletedTask,
+            DropColumnOperation o => StartDropColumn(o, conn, ct),
+            RenameColumnOperation o => StartRenameColumn(o, conn, ct),
             CreateIndexOperation o => StartCreateIndex(o, conn, ct),
-            DropIndexOperation _ => Task.CompletedTask,
+            DropIndexOperation o => StartDropIndex(o, conn, ct),
             AlterColumnOperation o => StartAlterColumn(o, conn, migration, snapshot, ct),
             CreateConstraintOperation o => StartCreateConstraint(o, conn, ct),
-            DropConstraintOperation _ => Task.CompletedTask,
+            DropConstraintOperation o => StartDropConstraint(o, conn, ct),
             RenameConstraintOperation _ => Task.CompletedTask,
             RawSqlOperation o => StartRawSql(o, conn, ct),
             SetNotNullOperation o => StartSetNotNull(o, conn, ct),
@@ -374,13 +380,13 @@ public sealed class PgMigrationExecutor
             DropTableOperation o => CompleteDropTable(o, conn, ct),
             RenameTableOperation o => CompleteRenameTable(o, conn, ct),
             AddColumnOperation o => CompleteAddColumn(o, conn, migration, ct),
-            DropColumnOperation o => CompleteDropColumn(o, conn, ct),
-            RenameColumnOperation o => CompleteRenameColumn(o, conn, ct),
+            DropColumnOperation _ => Task.CompletedTask,   // dropped in Start
+            RenameColumnOperation _ => Task.CompletedTask, // renamed in Start
             CreateIndexOperation _ => Task.CompletedTask,
-            DropIndexOperation o => CompleteDropIndex(o, conn, ct),
+            DropIndexOperation _ => Task.CompletedTask,   // dropped in Start
             AlterColumnOperation o => CompleteAlterColumn(o, conn, migration, snapshot, ct),
             CreateConstraintOperation o => CompleteCreateConstraint(o, conn, ct),
-            DropConstraintOperation o => CompleteDropConstraint(o, conn, ct),
+            DropConstraintOperation _ => Task.CompletedTask,   // dropped in Start
             RenameConstraintOperation o => CompleteRenameConstraint(o, conn, ct),
             RawSqlOperation _ => Task.CompletedTask,
             SetNotNullOperation _ => Task.CompletedTask,
@@ -403,10 +409,10 @@ public sealed class PgMigrationExecutor
             DropTableOperation o => RollbackDropTable(o, conn, ct),
             RenameTableOperation _ => Task.CompletedTask,
             AddColumnOperation o => RollbackAddColumn(o, conn, migration, ct),
-            DropColumnOperation _ => Task.CompletedTask,
-            RenameColumnOperation _ => Task.CompletedTask,
+            DropColumnOperation _ => Task.CompletedTask,           // cannot restore dropped column
+            RenameColumnOperation o => RollbackRenameColumn(o, conn, ct),
             CreateIndexOperation o => RollbackCreateIndex(o, conn, ct),
-            DropIndexOperation _ => Task.CompletedTask,
+            DropIndexOperation _ => Task.CompletedTask,            // cannot restore dropped index
             AlterColumnOperation o => RollbackAlterColumn(o, conn, migration, ct),
             CreateConstraintOperation o => RollbackCreateConstraint(o, conn, ct),
             DropConstraintOperation _ => Task.CompletedTask,
@@ -563,15 +569,19 @@ public sealed class PgMigrationExecutor
 
     // ── drop_column ───────────────────────────────────────────────────────────
 
-    private Task CompleteDropColumn(DropColumnOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+    private Task StartDropColumn(DropColumnOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn,
             $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP COLUMN IF EXISTS {QuoteIdent(op.Column)}", ct);
 
     // ── rename_column ─────────────────────────────────────────────────────────
 
-    private Task CompleteRenameColumn(RenameColumnOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+    private Task StartRenameColumn(RenameColumnOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn,
             $"ALTER TABLE {Quote(_schemaName, op.Table)} RENAME COLUMN {QuoteIdent(op.From)} TO {QuoteIdent(op.To)}", ct);
+
+    private Task RollbackRenameColumn(RenameColumnOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} RENAME COLUMN {QuoteIdent(op.To)} TO {QuoteIdent(op.From)}", ct);
 
     // ── create_index ──────────────────────────────────────────────────────────
 
@@ -588,7 +598,7 @@ public sealed class PgMigrationExecutor
 
     // ── drop_index ────────────────────────────────────────────────────────────
 
-    private Task CompleteDropIndex(DropIndexOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+    private Task StartDropIndex(DropIndexOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn, $"DROP INDEX CONCURRENTLY IF EXISTS {Quote(_schemaName, op.Name)}", ct);
 
     // ── alter_column ──────────────────────────────────────────────────────────
@@ -654,11 +664,31 @@ public sealed class PgMigrationExecutor
         // Drop version schema first — it has views that reference both the original and dup columns
         await PgVersionSchemaManager.DropVersionSchemaAsync(conn, _schemaName, migration.Name, ct);
 
-        // Drop original column and promote dup
+        // If the original column is part of the PK, capture PK info before dropping.
+        // DROP COLUMN CASCADE will remove the PK constraint, so we recreate it afterwards.
+        var tableInfo = snapshot.GetTable(op.Table);
+        var origCol = tableInfo?.Columns.FirstOrDefault(c =>
+            c.Name.Equals(op.Column, StringComparison.OrdinalIgnoreCase));
+        PkInfo? pkInfo = null;
+        if (origCol?.IsPrimaryKey == true)
+            pkInfo = await ReadPrimaryKeyAsync(conn, _schemaName, op.Table, ct);
+
+        // Drop original column and promote dup.
+        // Use CASCADE so that FK constraints from other tables that reference this column are also dropped.
         await ExecAsync(conn,
-            $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP COLUMN {QuoteIdent(op.Column)}", ct);
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP COLUMN {QuoteIdent(op.Column)} CASCADE", ct);
         await ExecAsync(conn,
             $"ALTER TABLE {Quote(_schemaName, op.Table)} RENAME COLUMN {QuoteIdent(dupCol)} TO {QuoteIdent(finalName)}", ct);
+
+        // Recreate the PK if it was dropped via CASCADE (column was part of the primary key).
+        if (pkInfo is not null)
+        {
+            var pkCols = pkInfo.Columns
+                .Select(c => c.Equals(op.Column, StringComparison.OrdinalIgnoreCase) ? finalName : c)
+                .Select(QuoteIdent);
+            await ExecAsync(conn,
+                $"ALTER TABLE {Quote(_schemaName, op.Table)} ADD CONSTRAINT {QuoteIdent(pkInfo.Name)} PRIMARY KEY ({string.Join(", ", pkCols)})", ct);
+        }
 
         if (op.NotNull == true)
             await ExecAsync(conn,
@@ -719,10 +749,16 @@ public sealed class PgMigrationExecutor
     }
 
     private Task CompleteCreateConstraint(CreateConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
-        // Only CHECK and FOREIGN KEY need VALIDATE; UNIQUE is already fully enforced
+        // Only CHECK and FOREIGN KEY need VALIDATE; UNIQUE is already fully enforced.
+        // Use exception handling to gracefully skip if the constraint was cascade-dropped
+        // by a concurrent alter_column Complete in the same migration.
         op.ConstraintType is "check" or "foreign_key"
-            ? ExecAsync(conn,
-                $"ALTER TABLE {Quote(_schemaName, op.Table)} VALIDATE CONSTRAINT {QuoteIdent(op.Name)}", ct)
+            ? ExecAsync(conn, $"""
+                DO $$ BEGIN
+                  ALTER TABLE {Quote(_schemaName, op.Table)} VALIDATE CONSTRAINT {QuoteIdent(op.Name)};
+                EXCEPTION WHEN undefined_object THEN NULL;
+                END $$;
+                """, ct)
             : Task.CompletedTask;
 
     private Task RollbackCreateConstraint(CreateConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
@@ -742,7 +778,7 @@ public sealed class PgMigrationExecutor
 
     // ── drop_constraint ───────────────────────────────────────────────────────
 
-    private Task CompleteDropConstraint(DropConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+    private Task StartDropConstraint(DropConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn,
             $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP CONSTRAINT {QuoteIdent(op.Name)}", ct);
 
@@ -889,6 +925,37 @@ public sealed class PgMigrationExecutor
         var softName = SoftDeletePrefix + op.Name;
         return ExecAsync(conn,
             $"ALTER VIEW {Quote(_schemaName, softName)} RENAME TO {QuoteIdent(op.Name)}", ct);
+    }
+
+    // ── Primary key helpers ───────────────────────────────────────────────────
+
+    private sealed record PkInfo(string Name, IReadOnlyList<string> Columns);
+
+    private static async Task<PkInfo?> ReadPrimaryKeyAsync(
+        NpgsqlConnection conn, string schemaName, string tableName, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT c.conname, a.attname
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(c.conkey)
+            WHERE n.nspname = $1 AND t.relname = $2 AND c.contype = 'p'
+            ORDER BY a.attnum
+            """;
+
+        string? pkName = null;
+        var cols = new List<string>();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue(schemaName);
+        cmd.Parameters.AddWithValue(tableName);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            pkName = reader.GetString(0);
+            cols.Add(reader.GetString(1));
+        }
+        return pkName is null ? null : new PkInfo(pkName, cols);
     }
 
     // ── Version schema helpers ─────────────────────────────────────────────────
