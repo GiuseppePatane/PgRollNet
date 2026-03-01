@@ -1,24 +1,19 @@
 using System.CommandLine;
-using PgRoll.PostgreSQL;
 
 namespace PgRoll.Cli.Commands;
 
 public static class PullCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt = new Option<string>("--schema", () => "public", "Target schema name");
         var dirArg = new Argument<DirectoryInfo>("directory", "Directory to write migration JSON files into");
 
         var cmd = new Command("pull", "Write completed migration history to JSON files.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
         cmd.AddArgument(dirArg);
 
-        cmd.SetHandler(async (connection, schema, dir) =>
+        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
-            var executor = new PgMigrationExecutor(connection, schema);
+            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
             var history = await executor.GetHistoryAsync();
             var completed = history.Where(r => r.Done).ToList();
 
@@ -40,7 +35,7 @@ public static class PullCommand
             }
 
             Console.WriteLine($"Written {written} migration file(s) to '{dir.FullName}'.");
-        }, connectionOpt, schemaOpt, dirArg);
+        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }

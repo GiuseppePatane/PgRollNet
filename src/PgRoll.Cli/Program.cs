@@ -1,19 +1,30 @@
 using System.CommandLine;
+using PgRoll.Cli;
 using PgRoll.Cli.Commands;
 using PgRoll.Core.Errors;
 
-var rootCmd = new RootCommand("pgroll — zero-downtime PostgreSQL schema migrations for .NET");
+var g = new GlobalOptions();
+var rootCmd = new RootCommand("pgroll-net — zero-downtime PostgreSQL schema migrations for .NET");
 
-rootCmd.AddCommand(InitCommand.Build());
-rootCmd.AddCommand(StartCommand.Build());
-rootCmd.AddCommand(CompleteCommand.Build());
-rootCmd.AddCommand(RollbackCommand.Build());
-rootCmd.AddCommand(StatusCommand.Build());
-rootCmd.AddCommand(ValidateCommand.Build());
-rootCmd.AddCommand(MigrateCommand.Build());
-rootCmd.AddCommand(PendingCommand.Build());
-rootCmd.AddCommand(PullCommand.Build());
+rootCmd.AddGlobalOption(g.Connection);
+rootCmd.AddGlobalOption(g.Schema);
+rootCmd.AddGlobalOption(g.PgrollSchema);
+rootCmd.AddGlobalOption(g.LockTimeout);
+rootCmd.AddGlobalOption(g.Role);
+rootCmd.AddGlobalOption(g.Verbose);
+
+rootCmd.AddCommand(InitCommand.Build(g));
+rootCmd.AddCommand(StartCommand.Build(g));
+rootCmd.AddCommand(CompleteCommand.Build(g));
+rootCmd.AddCommand(RollbackCommand.Build(g));
+rootCmd.AddCommand(StatusCommand.Build(g));
+rootCmd.AddCommand(ValidateCommand.Build(g));
+rootCmd.AddCommand(MigrateCommand.Build(g));
+rootCmd.AddCommand(PendingCommand.Build(g));
+rootCmd.AddCommand(PullCommand.Build(g));
 rootCmd.AddCommand(EfCoreCommand.Build());
+rootCmd.AddCommand(BaselineCommand.Build(g));
+rootCmd.AddCommand(LatestCommand.Build(g));
 
 try
 {

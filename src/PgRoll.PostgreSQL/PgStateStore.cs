@@ -10,24 +10,28 @@ public sealed class PgStateStore : IMigrationState
 {
     private readonly NpgsqlDataSource _dataSource;
     private readonly ILogger<PgStateStore> _logger;
+    private readonly string _pgrollSchema;
 
-    public PgStateStore(NpgsqlDataSource dataSource, ILogger<PgStateStore>? logger = null)
+    private string TableRef => $"{_pgrollSchema}.migrations";
+
+    public PgStateStore(NpgsqlDataSource dataSource, string pgrollSchema = "pgroll", ILogger<PgStateStore>? logger = null)
     {
         _dataSource = dataSource;
+        _pgrollSchema = pgrollSchema;
         _logger = logger ?? NullLogger<PgStateStore>.Instance;
     }
 
     /// <summary>
     /// Convenience constructor for creating a data source from a connection string.
     /// </summary>
-    public PgStateStore(string connectionString, ILogger<PgStateStore>? logger = null)
-        : this(NpgsqlDataSource.Create(connectionString), logger)
+    public PgStateStore(string connectionString, string pgrollSchema = "pgroll", ILogger<PgStateStore>? logger = null)
+        : this(NpgsqlDataSource.Create(connectionString), pgrollSchema, logger)
     {
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        var sql = ReadEmbeddedSql("init.sql");
+        var sql = string.Format(ReadEmbeddedSql("init.sql"), _pgrollSchema);
         _logger.LogInformation("Initializing pgroll state schema.");
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(sql, conn);
@@ -37,9 +41,9 @@ public sealed class PgStateStore : IMigrationState
 
     public async Task<MigrationRecord?> GetActiveMigrationAsync(string schema, CancellationToken ct = default)
     {
-        const string sql = """
+        var sql = $"""
             SELECT schema, name, migration::text, created_at, updated_at, parent, done
-            FROM pgroll.migrations
+            FROM {TableRef}
             WHERE schema = $1 AND done = FALSE
             ORDER BY created_at DESC
             LIMIT 1
@@ -58,8 +62,8 @@ public sealed class PgStateStore : IMigrationState
 
     public async Task RecordStartedAsync(MigrationRecord record, CancellationToken ct = default)
     {
-        const string sql = """
-            INSERT INTO pgroll.migrations (schema, name, migration, parent, done)
+        var sql = $"""
+            INSERT INTO {TableRef} (schema, name, migration, parent, done)
             VALUES ($1, $2, $3::jsonb, $4, FALSE)
             """;
 
@@ -76,8 +80,8 @@ public sealed class PgStateStore : IMigrationState
 
     public async Task RecordCompletedAsync(string schema, string name, CancellationToken ct = default)
     {
-        const string sql = """
-            UPDATE pgroll.migrations
+        var sql = $"""
+            UPDATE {TableRef}
             SET done = TRUE, updated_at = NOW()
             WHERE schema = $1 AND name = $2
             """;
@@ -96,7 +100,7 @@ public sealed class PgStateStore : IMigrationState
 
     public async Task DeleteRecordAsync(string schema, string name, CancellationToken ct = default)
     {
-        const string sql = "DELETE FROM pgroll.migrations WHERE schema = $1 AND name = $2";
+        var sql = $"DELETE FROM {TableRef} WHERE schema = $1 AND name = $2";
 
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
         await using var cmd = new NpgsqlCommand(sql, conn);
@@ -109,9 +113,9 @@ public sealed class PgStateStore : IMigrationState
 
     public async Task<IReadOnlyList<MigrationRecord>> GetHistoryAsync(string schema, CancellationToken ct = default)
     {
-        const string sql = """
+        var sql = $"""
             SELECT schema, name, migration::text, created_at, updated_at, parent, done
-            FROM pgroll.migrations
+            FROM {TableRef}
             WHERE schema = $1
             ORDER BY created_at ASC
             """;

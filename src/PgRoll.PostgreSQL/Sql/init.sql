@@ -1,6 +1,6 @@
-CREATE SCHEMA IF NOT EXISTS pgroll;
+CREATE SCHEMA IF NOT EXISTS {0};
 
-CREATE TABLE IF NOT EXISTS pgroll.migrations (
+CREATE TABLE IF NOT EXISTS {0}.migrations (
     schema      TEXT NOT NULL,
     name        TEXT NOT NULL,
     migration   JSONB,

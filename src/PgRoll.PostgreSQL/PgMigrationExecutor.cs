@@ -24,6 +24,7 @@ public sealed class PgMigrationExecutor
     private readonly PgSchemaReader _schemaReader;
     private readonly ILogger<PgMigrationExecutor> _logger;
     private readonly string _schemaName;
+    private readonly string? _role;
 
     /// <summary>
     /// Optional progress reporter for backfill operations.
@@ -34,21 +35,42 @@ public sealed class PgMigrationExecutor
     public PgMigrationExecutor(
         NpgsqlDataSource dataSource,
         string schemaName = "public",
+        string pgrollSchema = "pgroll",
+        string? role = null,
         ILogger<PgMigrationExecutor>? logger = null)
     {
         _dataSource = dataSource;
         _schemaName = schemaName;
+        _role = role;
         _logger = logger ?? NullLogger<PgMigrationExecutor>.Instance;
-        _stateStore = new PgStateStore(dataSource);
+        _stateStore = new PgStateStore(dataSource, pgrollSchema);
         _schemaReader = new PgSchemaReader(dataSource);
     }
 
     public PgMigrationExecutor(
         string connectionString,
         string schemaName = "public",
+        string pgrollSchema = "pgroll",
+        int lockTimeoutMs = 500,
+        string? role = null,
         ILogger<PgMigrationExecutor>? logger = null)
-        : this(NpgsqlDataSource.Create(connectionString), schemaName, logger)
+        : this(BuildDataSource(connectionString, lockTimeoutMs), schemaName, pgrollSchema, role, logger)
     {
+    }
+
+    private static NpgsqlDataSource BuildDataSource(string connectionString, int lockTimeoutMs)
+    {
+        var csb = new NpgsqlConnectionStringBuilder(connectionString);
+        csb.Options = $"-c lock_timeout={lockTimeoutMs}ms";
+        return NpgsqlDataSource.Create(csb.ToString());
+    }
+
+    private async ValueTask<NpgsqlConnection> OpenConnectionAsync(CancellationToken ct)
+    {
+        var conn = await _dataSource.OpenConnectionAsync(ct);
+        if (_role is not null)
+            await new NpgsqlCommand($"SET ROLE {_role}", conn).ExecuteNonQueryAsync(ct);
+        return conn;
     }
 
     /// <summary>Initializes the pgroll state schema (idempotent).</summary>
@@ -65,7 +87,7 @@ public sealed class PgMigrationExecutor
 
         // Acquire a per-schema advisory lock (non-blocking) to prevent two concurrent processes
         // from both seeing "no active migration" and both attempting to start one.
-        await using var lockConn = await _dataSource.OpenConnectionAsync(ct);
+        await using var lockConn = await OpenConnectionAsync(ct);
         if (!await TryAcquireAdvisoryLockAsync(lockConn, _schemaName, ct))
             throw new MigrationLockError(_schemaName);
 
@@ -206,12 +228,42 @@ public sealed class PgMigrationExecutor
     public Task<IReadOnlyList<MigrationRecord>> GetHistoryAsync(CancellationToken ct = default) =>
         _stateStore.GetHistoryAsync(_schemaName, ct);
 
+    /// <summary>
+    /// Records a baseline migration: inserts a completed record with no operations,
+    /// anchoring the history at the current database state.
+    /// </summary>
+    public async Task CreateBaselineAsync(string migrationName, CancellationToken ct = default)
+    {
+        await _stateStore.InitializeAsync(ct);
+
+        var active = await _stateStore.GetActiveMigrationAsync(_schemaName, ct);
+        if (active is not null)
+            throw new PgRollException($"Cannot create baseline: migration '{active.Name}' is still active.");
+
+        var history = await _stateStore.GetHistoryAsync(_schemaName, ct);
+        var parent = history.LastOrDefault(r => r.Done)?.Name;
+
+        var emptyMigration = new Migration { Name = migrationName, Operations = [] };
+        var record = new MigrationRecord(
+            Schema: _schemaName,
+            Name: migrationName,
+            MigrationJson: emptyMigration.Serialize(),
+            CreatedAt: DateTimeOffset.UtcNow,
+            UpdatedAt: DateTimeOffset.UtcNow,
+            Parent: parent,
+            Done: false);
+
+        await _stateStore.RecordStartedAsync(record, ct);
+        await _stateStore.RecordCompletedAsync(_schemaName, migrationName, ct);
+        _logger.LogInformation("Baseline migration '{Name}' created for schema '{Schema}'.", migrationName, _schemaName);
+    }
+
     // ── Start phase helpers ───────────────────────────────────────────────────
 
     private async Task ExecuteStartTransactional(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
@@ -228,7 +280,7 @@ public sealed class PgMigrationExecutor
     private async Task ExecuteStartConcurrently(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await DispatchStart(op, conn, migration, snapshot, ct);
     }
 
@@ -237,7 +289,7 @@ public sealed class PgMigrationExecutor
     private async Task ExecuteCompleteTransactional(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
@@ -254,7 +306,7 @@ public sealed class PgMigrationExecutor
     private async Task ExecuteCompleteConcurrently(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await DispatchComplete(op, conn, migration, snapshot, ct);
     }
 
@@ -263,7 +315,7 @@ public sealed class PgMigrationExecutor
     private async Task ExecuteRollbackTransactional(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         try
         {
@@ -280,7 +332,7 @@ public sealed class PgMigrationExecutor
     private async Task ExecuteRollbackConcurrently(
         IMigrationOperation op, Migration migration, SchemaSnapshot snapshot, CancellationToken ct)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(ct);
+        await using var conn = await OpenConnectionAsync(ct);
         await DispatchRollback(op, conn, migration, snapshot, ct);
     }
 

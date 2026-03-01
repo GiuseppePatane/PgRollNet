@@ -6,20 +6,16 @@ namespace PgRoll.Cli.Commands;
 
 public static class ValidateCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string?>("--connection", "PostgreSQL connection string (required unless --offline)");
-        var schemaOpt     = new Option<string>("--schema", () => "public", "Target schema name");
-        var offlineOpt    = new Option<bool>("--offline", "Validate required fields only, without connecting to the database");
-        var fileArg       = new Argument<FileInfo>("file", "Path to the migration JSON file");
+        var offlineOpt = new Option<bool>("--offline", "Validate required fields only, without connecting to the database");
+        var fileArg    = new Argument<FileInfo>("file", "Path to the migration JSON file");
 
         var cmd = new Command("validate", "Validate a migration file without executing it.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
         cmd.AddOption(offlineOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (connection, schema, offline, file) =>
+        cmd.SetHandler(async (offline, file, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
             if (!file.Exists)
             {
@@ -86,7 +82,7 @@ public static class ValidateCommand
                     Console.WriteLine(err);
                 Environment.Exit(1);
             }
-        }, connectionOpt, schemaOpt, offlineOpt, fileArg);
+        }, offlineOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }

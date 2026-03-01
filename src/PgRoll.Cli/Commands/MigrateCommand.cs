@@ -1,25 +1,20 @@
 using System.CommandLine;
 using PgRoll.Core.Models;
-using PgRoll.PostgreSQL;
 
 namespace PgRoll.Cli.Commands;
 
 public static class MigrateCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt = new Option<string>("--schema", () => "public", "Target schema name");
         var dirArg = new Argument<DirectoryInfo>("directory", "Directory containing migration JSON files");
 
         var cmd = new Command("migrate", "Apply all pending migrations from a directory.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
         cmd.AddArgument(dirArg);
 
-        cmd.SetHandler(async (connection, schema, dir) =>
+        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
-            var executor = new PgMigrationExecutor(connection, schema);
+            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
 
             var migrationFiles = dir.GetFiles("*.json")
                 .OrderBy(f => f.Name)
@@ -56,7 +51,7 @@ public static class MigrateCommand
             }
 
             Console.WriteLine("All migrations applied.");
-        }, connectionOpt, schemaOpt, dirArg);
+        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }

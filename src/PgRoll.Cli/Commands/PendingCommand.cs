@@ -1,24 +1,19 @@
 using System.CommandLine;
-using PgRoll.PostgreSQL;
 
 namespace PgRoll.Cli.Commands;
 
 public static class PendingCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt     = new Option<string>("--schema", () => "public", "Target schema name");
-        var dirArg        = new Argument<DirectoryInfo>("directory", "Directory containing migration JSON files");
+        var dirArg = new Argument<DirectoryInfo>("directory", "Directory containing migration JSON files");
 
         var cmd = new Command("pending",
             "List migration files that have not yet been applied. " +
             "Exits with code 1 if there are pending migrations, 0 if everything is up to date.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
         cmd.AddArgument(dirArg);
 
-        cmd.SetHandler(async (connection, schema, dir) =>
+        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
             if (!dir.Exists)
             {
@@ -38,7 +33,7 @@ public static class PendingCommand
                 return;
             }
 
-            var executor = new PgMigrationExecutor(connection, schema);
+            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
             var history  = await executor.GetHistoryAsync();
             var applied  = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
@@ -60,7 +55,7 @@ public static class PendingCommand
             // Exit 1 — signals the CD pipeline that migrations must be applied
             Environment.Exit(1);
 
-        }, connectionOpt, schemaOpt, dirArg);
+        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }

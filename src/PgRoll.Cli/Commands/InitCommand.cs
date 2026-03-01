@@ -1,26 +1,19 @@
 using System.CommandLine;
-using Npgsql;
-using PgRoll.PostgreSQL;
 
 namespace PgRoll.Cli.Commands;
 
 public static class InitCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt = new Option<string>("--schema", () => "public", "Target schema name");
-
         var cmd = new Command("init", "Initialize the pgroll state schema in the target database.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
 
-        cmd.SetHandler(async (connection, schema) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
         {
-            var executor = new PgMigrationExecutor(connection, schema);
+            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
             await executor.InitializeAsync();
             Console.WriteLine("pgroll initialized successfully.");
-        }, connectionOpt, schemaOpt);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }

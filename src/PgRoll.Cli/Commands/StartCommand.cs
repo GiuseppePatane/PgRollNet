@@ -6,20 +6,16 @@ namespace PgRoll.Cli.Commands;
 
 public static class StartCommand
 {
-    public static Command Build()
+    public static Command Build(GlobalOptions g)
     {
-        var connectionOpt = new Option<string>("--connection", "PostgreSQL connection string") { IsRequired = true };
-        var schemaOpt     = new Option<string>("--schema", () => "public", "Target schema name");
-        var dryRunOpt     = new Option<bool>("--dry-run", "Validate and describe the migration without executing it");
-        var fileArg       = new Argument<FileInfo>("file", "Path to the migration JSON file");
+        var dryRunOpt = new Option<bool>("--dry-run", "Validate and describe the migration without executing it");
+        var fileArg   = new Argument<FileInfo>("file", "Path to the migration JSON file");
 
         var cmd = new Command("start", "Start a migration from a JSON file.");
-        cmd.AddOption(connectionOpt);
-        cmd.AddOption(schemaOpt);
         cmd.AddOption(dryRunOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (connection, schema, dryRun, file) =>
+        cmd.SetHandler(async (dryRun, file, connection, schema, pgrollSchema, lockTimeout, role) =>
         {
             var json = await File.ReadAllTextAsync(file.FullName);
             var migration = Migration.Deserialize(json);
@@ -30,16 +26,16 @@ public static class StartCommand
                 return;
             }
 
-            var executor = new PgMigrationExecutor(connection, schema);
+            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
             await executor.StartAsync(migration);
             Console.WriteLine($"Migration '{migration.Name}' started. Run 'pgroll complete' to finalize.");
 
-        }, connectionOpt, schemaOpt, dryRunOpt, fileArg);
+        }, dryRunOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 
         return cmd;
     }
 
-    private static async Task RunDryRunAsync(string connection, string schema, Migration migration)
+    private static async Task RunDryRunAsync(string? connection, string schema, Migration migration)
     {
         Console.WriteLine($"Dry run: '{migration.Name}' ({migration.Operations.Count} operation(s)) — no changes will be made.");
         Console.WriteLine();
@@ -56,6 +52,12 @@ public static class StartCommand
             foreach (var (op, r) in structuralErrors)
                 Console.WriteLine($"  [{op.Type}] {r.Error}");
             Environment.Exit(1);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(connection))
+        {
+            Console.WriteLine("Structural validation passed (no --connection provided; skipping online validation).");
             return;
         }
 

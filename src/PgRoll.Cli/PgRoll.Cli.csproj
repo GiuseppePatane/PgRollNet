@@ -3,10 +3,10 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <PackageId>PgRoll.Cli</PackageId>
-    <AssemblyName>pgroll</AssemblyName>
+    <AssemblyName>pgroll-net</AssemblyName>
     <Version>1.0.0-preview.1</Version>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>pgroll</ToolCommandName>
+    <ToolCommandName>pgroll-net</ToolCommandName>
     <Description>CLI tool for pgroll.NET — zero-downtime PostgreSQL schema migrations.</Description>
     <PackageTags>postgresql;migrations;zero-downtime;pgroll;dotnet-tool</PackageTags>
   </PropertyGroup>
