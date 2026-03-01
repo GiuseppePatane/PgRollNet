@@ -48,6 +48,28 @@ public sealed class MigrationOperationConverter : JsonConverter<IMigrationOperat
                 ?? throw new JsonException("Failed to deserialize drop_constraint."),
             "rename_constraint" => JsonSerializer.Deserialize<RenameConstraintOperation>(raw, options)
                 ?? throw new JsonException("Failed to deserialize rename_constraint."),
+            "raw_sql" => JsonSerializer.Deserialize<RawSqlOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize raw_sql."),
+            "set_not_null" => JsonSerializer.Deserialize<SetNotNullOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize set_not_null."),
+            "drop_not_null" => JsonSerializer.Deserialize<DropNotNullOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize drop_not_null."),
+            "set_default" => JsonSerializer.Deserialize<SetDefaultOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize set_default."),
+            "drop_default" => JsonSerializer.Deserialize<DropDefaultOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize drop_default."),
+            "create_schema" => JsonSerializer.Deserialize<CreateSchemaOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize create_schema."),
+            "drop_schema" => JsonSerializer.Deserialize<DropSchemaOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize drop_schema."),
+            "create_enum" => JsonSerializer.Deserialize<CreateEnumOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize create_enum."),
+            "drop_enum" => JsonSerializer.Deserialize<DropEnumOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize drop_enum."),
+            "create_view" => JsonSerializer.Deserialize<CreateViewOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize create_view."),
+            "drop_view" => JsonSerializer.Deserialize<DropViewOperation>(raw, options)
+                ?? throw new JsonException("Failed to deserialize drop_view."),
             _ => throw new JsonException($"Unknown operation type '{typeName}'.")
         };
     }

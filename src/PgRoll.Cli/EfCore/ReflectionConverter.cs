@@ -149,6 +149,13 @@ public static class ReflectionConverter
                     });
                     break;
 
+                case "SqlOperation":
+                    pgrollOps.Add(new RawSqlOperation
+                    {
+                        Sql = Str(op, "Sql") ?? ""
+                    });
+                    break;
+
                 // RenameIndexOperation: no pgroll equivalent
                 case "RenameIndexOperation":
                     skipped.Add(op.GetType().Name);

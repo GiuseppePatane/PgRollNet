@@ -301,6 +301,17 @@ public sealed class PgMigrationExecutor
             CreateConstraintOperation o => StartCreateConstraint(o, conn, ct),
             DropConstraintOperation _ => Task.CompletedTask,
             RenameConstraintOperation _ => Task.CompletedTask,
+            RawSqlOperation o => StartRawSql(o, conn, ct),
+            SetNotNullOperation o => StartSetNotNull(o, conn, ct),
+            DropNotNullOperation o => StartDropNotNull(o, conn, ct),
+            SetDefaultOperation o => StartSetDefault(o, conn, ct),
+            DropDefaultOperation o => StartDropDefault(o, conn, ct),
+            CreateSchemaOperation o => StartCreateSchema(o, conn, ct),
+            DropSchemaOperation o => StartDropSchema(o, conn, ct),
+            CreateEnumOperation o => StartCreateEnum(o, conn, ct),
+            DropEnumOperation o => StartDropEnum(o, conn, ct),
+            CreateViewOperation o => StartCreateView(o, conn, ct),
+            DropViewOperation o => StartDropView(o, conn, ct),
             _ => throw new UnknownOperationTypeError(op.GetType().Name)
         };
 
@@ -319,6 +330,17 @@ public sealed class PgMigrationExecutor
             CreateConstraintOperation o => CompleteCreateConstraint(o, conn, ct),
             DropConstraintOperation o => CompleteDropConstraint(o, conn, ct),
             RenameConstraintOperation o => CompleteRenameConstraint(o, conn, ct),
+            RawSqlOperation _ => Task.CompletedTask,
+            SetNotNullOperation _ => Task.CompletedTask,
+            DropNotNullOperation _ => Task.CompletedTask,
+            SetDefaultOperation _ => Task.CompletedTask,
+            DropDefaultOperation _ => Task.CompletedTask,
+            CreateSchemaOperation _ => Task.CompletedTask,
+            DropSchemaOperation o => CompleteDropSchema(o, conn, ct),
+            CreateEnumOperation _ => Task.CompletedTask,
+            DropEnumOperation o => CompleteDropEnum(o, conn, ct),
+            CreateViewOperation _ => Task.CompletedTask,
+            DropViewOperation o => CompleteDropView(o, conn, ct),
             _ => throw new UnknownOperationTypeError(op.GetType().Name)
         };
 
@@ -337,6 +359,17 @@ public sealed class PgMigrationExecutor
             CreateConstraintOperation o => RollbackCreateConstraint(o, conn, ct),
             DropConstraintOperation _ => Task.CompletedTask,
             RenameConstraintOperation _ => Task.CompletedTask,
+            RawSqlOperation o => RollbackRawSql(o, conn, ct),
+            SetNotNullOperation o => RollbackSetNotNull(o, conn, ct),
+            DropNotNullOperation o => RollbackDropNotNull(o, conn, ct),
+            SetDefaultOperation o => RollbackSetDefault(o, conn, ct),
+            DropDefaultOperation _ => Task.CompletedTask,
+            CreateSchemaOperation o => RollbackCreateSchema(o, conn, ct),
+            DropSchemaOperation o => RollbackDropSchema(o, conn, ct),
+            CreateEnumOperation o => RollbackCreateEnum(o, conn, ct),
+            DropEnumOperation o => RollbackDropEnum(o, conn, ct),
+            CreateViewOperation o => RollbackCreateView(o, conn, ct),
+            DropViewOperation o => RollbackDropView(o, conn, ct),
             _ => throw new UnknownOperationTypeError(op.GetType().Name)
         };
 
@@ -353,6 +386,8 @@ public sealed class PgMigrationExecutor
             if (!col.Nullable) def += " NOT NULL";
             if (col.Default is not null) def += $" DEFAULT {col.Default}";
             if (col.PrimaryKey) def += " PRIMARY KEY";
+            if (col.Unique) def += " UNIQUE";
+            if (col.References is not null) def += $" REFERENCES {col.References}";
             return def;
         });
 
@@ -664,6 +699,145 @@ public sealed class PgMigrationExecutor
     private Task CompleteRenameConstraint(RenameConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn,
             $"ALTER TABLE {Quote(_schemaName, op.Table)} RENAME CONSTRAINT {QuoteIdent(op.From)} TO {QuoteIdent(op.To)}", ct);
+
+    // ── raw_sql ───────────────────────────────────────────────────────────────
+
+    private Task StartRawSql(RawSqlOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn, op.Sql, ct);
+
+    private Task RollbackRawSql(RawSqlOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        op.RollbackSql is not null ? ExecAsync(conn, op.RollbackSql, ct) : Task.CompletedTask;
+
+    // ── set_not_null ──────────────────────────────────────────────────────────
+
+    private Task StartSetNotNull(SetNotNullOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} SET NOT NULL", ct);
+
+    private Task RollbackSetNotNull(SetNotNullOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} DROP NOT NULL", ct);
+
+    // ── drop_not_null ─────────────────────────────────────────────────────────
+
+    private Task StartDropNotNull(DropNotNullOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} DROP NOT NULL", ct);
+
+    private Task RollbackDropNotNull(DropNotNullOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} SET NOT NULL", ct);
+
+    // ── set_default ───────────────────────────────────────────────────────────
+
+    private Task StartSetDefault(SetDefaultOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} SET DEFAULT {op.Value}", ct);
+
+    private Task RollbackSetDefault(SetDefaultOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} DROP DEFAULT", ct);
+
+    // ── drop_default ──────────────────────────────────────────────────────────
+
+    private Task StartDropDefault(DropDefaultOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} ALTER COLUMN {QuoteIdent(op.Column)} DROP DEFAULT", ct);
+
+    // ── create_schema ─────────────────────────────────────────────────────────
+
+    private Task StartCreateSchema(CreateSchemaOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn, $"CREATE SCHEMA IF NOT EXISTS {QuoteIdent(op.Schema)}", ct);
+
+    private Task RollbackCreateSchema(CreateSchemaOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn, $"DROP SCHEMA IF EXISTS {QuoteIdent(op.Schema)} CASCADE", ct);
+
+    // ── drop_schema ───────────────────────────────────────────────────────────
+
+    private Task StartDropSchema(DropSchemaOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Schema;
+        return ExecAsync(conn,
+            $"ALTER SCHEMA {QuoteIdent(op.Schema)} RENAME TO {QuoteIdent(softName)}", ct);
+    }
+
+    private Task CompleteDropSchema(DropSchemaOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Schema;
+        return ExecAsync(conn, $"DROP SCHEMA IF EXISTS {QuoteIdent(softName)} CASCADE", ct);
+    }
+
+    private Task RollbackDropSchema(DropSchemaOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Schema;
+        return ExecAsync(conn,
+            $"ALTER SCHEMA {QuoteIdent(softName)} RENAME TO {QuoteIdent(op.Schema)}", ct);
+    }
+
+    // ── create_enum ───────────────────────────────────────────────────────────
+
+    private Task StartCreateEnum(CreateEnumOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var values = string.Join(", ", op.Values.Select(v => $"'{v.Replace("'", "''")}'"));
+        return ExecAsync(conn,
+            $"CREATE TYPE {Quote(_schemaName, op.Name)} AS ENUM ({values})", ct);
+    }
+
+    private Task RollbackCreateEnum(CreateEnumOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn, $"DROP TYPE IF EXISTS {Quote(_schemaName, op.Name)}", ct);
+
+    // ── drop_enum ─────────────────────────────────────────────────────────────
+
+    private Task StartDropEnum(DropEnumOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn,
+            $"ALTER TYPE {Quote(_schemaName, op.Name)} RENAME TO {QuoteIdent(softName)}", ct);
+    }
+
+    private Task CompleteDropEnum(DropEnumOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn, $"DROP TYPE IF EXISTS {Quote(_schemaName, softName)}", ct);
+    }
+
+    private Task RollbackDropEnum(DropEnumOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn,
+            $"ALTER TYPE {Quote(_schemaName, softName)} RENAME TO {QuoteIdent(op.Name)}", ct);
+    }
+
+    // ── create_view ───────────────────────────────────────────────────────────
+
+    private Task StartCreateView(CreateViewOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn,
+            $"CREATE VIEW {Quote(_schemaName, op.Name)} AS {op.Definition}", ct);
+
+    private Task RollbackCreateView(CreateViewOperation op, NpgsqlConnection conn, CancellationToken ct) =>
+        ExecAsync(conn, $"DROP VIEW IF EXISTS {Quote(_schemaName, op.Name)}", ct);
+
+    // ── drop_view ─────────────────────────────────────────────────────────────
+
+    private Task StartDropView(DropViewOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn,
+            $"ALTER VIEW {Quote(_schemaName, op.Name)} RENAME TO {QuoteIdent(softName)}", ct);
+    }
+
+    private Task CompleteDropView(DropViewOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn, $"DROP VIEW IF EXISTS {Quote(_schemaName, softName)}", ct);
+    }
+
+    private Task RollbackDropView(DropViewOperation op, NpgsqlConnection conn, CancellationToken ct)
+    {
+        var softName = SoftDeletePrefix + op.Name;
+        return ExecAsync(conn,
+            $"ALTER VIEW {Quote(_schemaName, softName)} RENAME TO {QuoteIdent(op.Name)}", ct);
+    }
 
     // ── Version schema helpers ─────────────────────────────────────────────────
 

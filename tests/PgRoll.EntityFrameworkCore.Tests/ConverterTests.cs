@@ -24,6 +24,7 @@ using EfInsertData = Microsoft.EntityFrameworkCore.Migrations.Operations.InsertD
 using EfRenameColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameColumnOperation;
 using EfRenameIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameIndexOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
+using EfSql = Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation;
 
 namespace PgRoll.EntityFrameworkCore.Tests;
 
@@ -457,6 +458,102 @@ public class ConverterTests
         var dc = result.Migration.Operations[0].Should().BeOfType<DropConstraintOperation>().Subject;
         dc.Table.Should().Be("orders");
         dc.Name.Should().Be("fk_orders_users");
+    }
+
+    // ── SqlOperation → raw_sql ────────────────────────────────────────────────
+
+    [Fact]
+    public void Convert_SqlOperation_MapsToRawSql()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfSql { Sql = "SELECT 1" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(1);
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Be("SELECT 1");
+        raw.RollbackSql.Should().BeNull();
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_SqlOperation_CreateFunction_MapsToRawSql()
+    {
+        const string createFn = """
+            CREATE OR REPLACE FUNCTION update_updated_at()
+            RETURNS TRIGGER LANGUAGE plpgsql AS $$
+            BEGIN
+              NEW.updated_at = now();
+              RETURN NEW;
+            END;
+            $$;
+            """;
+
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfSql { Sql = createFn }
+        ]);
+
+        var raw = result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>().Subject;
+        raw.Sql.Should().Contain("CREATE OR REPLACE FUNCTION");
+        raw.Sql.Should().Contain("RETURNS TRIGGER");
+    }
+
+    [Fact]
+    public void Convert_SqlOperation_MixedWithDdl_CorrectOrder()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1",
+        [
+            new EfCreateTable
+            {
+                Name = "logs",
+                Columns = { new EfAddColumn { Name = "id", ClrType = typeof(int), Table = "logs", IsNullable = false } }
+            },
+            new EfSql { Sql = "CREATE INDEX CONCURRENTLY ix_logs_id ON logs(id)" }
+        ]);
+
+        result.Migration.Operations.Should().HaveCount(2);
+        result.Migration.Operations[0].Should().BeOfType<CreateTableOperation>();
+        result.Migration.Operations[1].Should().BeOfType<RawSqlOperation>()
+            .Which.Sql.Should().Contain("CREATE INDEX CONCURRENTLY");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_SqlOperation_ViaMigrationBuilder()
+    {
+        var result = EfCoreMigrationConverter.Convert("m1", builder =>
+        {
+            builder.Sql("""
+                CREATE OR REPLACE FUNCTION notify_insert()
+                RETURNS TRIGGER LANGUAGE plpgsql AS $$
+                BEGIN
+                  PERFORM pg_notify('insert', row_to_json(NEW)::text);
+                  RETURN NEW;
+                END;
+                $$
+                """);
+        });
+
+        result.Migration.Operations.Should().HaveCount(1);
+        result.Migration.Operations[0].Should().BeOfType<RawSqlOperation>()
+            .Which.Sql.Should().Contain("pg_notify");
+        result.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Convert_SqlOperation_SerializesToRawSqlJson()
+    {
+        var result = EfCoreMigrationConverter.Convert("create_fn",
+        [
+            new EfSql { Sql = "CREATE FUNCTION f() RETURNS void LANGUAGE sql AS $$ SELECT 1 $$" }
+        ]);
+
+        var json = result.Migration.Serialize();
+        json.Should().Contain("\"type\":\"raw_sql\"");
+        json.Should().Contain("\"sql\":");
+        json.Should().Contain("CREATE FUNCTION");
     }
 
     // ── Skip behaviour ────────────────────────────────────────────────────────

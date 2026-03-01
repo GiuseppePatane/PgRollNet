@@ -20,6 +20,12 @@ public sealed class ColumnDefinition
 
     [JsonPropertyName("primary_key")]
     public bool PrimaryKey { get; init; }
+
+    [JsonPropertyName("unique")]
+    public bool Unique { get; init; }
+
+    [JsonPropertyName("references")]
+    public string? References { get; init; }
 }
 
 public sealed class CreateTableOperation : IMigrationOperation

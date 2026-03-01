@@ -222,4 +222,178 @@ public class ValidateStructureTests
     [Fact]
     public void RenameConstraint_EmptyFrom_Invalid() =>
         new RenameConstraintOperation { Table = "t", From = "", To = "new_ck" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── raw_sql ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RawSql_Valid() =>
+        new RawSqlOperation { Sql = "SELECT 1" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void RawSql_EmptySql_Invalid()
+    {
+        var r = new RawSqlOperation { Sql = "" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("sql");
+    }
+
+    // ── set_not_null ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SetNotNull_Valid() =>
+        new SetNotNullOperation { Table = "t", Column = "col" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void SetNotNull_EmptyTable_Invalid()
+    {
+        var r = new SetNotNullOperation { Table = "", Column = "col" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("Table");
+    }
+
+    [Fact]
+    public void SetNotNull_EmptyColumn_Invalid()
+    {
+        var r = new SetNotNullOperation { Table = "t", Column = "" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("Column");
+    }
+
+    // ── drop_not_null ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DropNotNull_Valid() =>
+        new DropNotNullOperation { Table = "t", Column = "col" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void DropNotNull_EmptyTable_Invalid() =>
+        new DropNotNullOperation { Table = "", Column = "col" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    [Fact]
+    public void DropNotNull_EmptyColumn_Invalid() =>
+        new DropNotNullOperation { Table = "t", Column = "" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── set_default ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SetDefault_Valid() =>
+        new SetDefaultOperation { Table = "t", Column = "col", Value = "0" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void SetDefault_EmptyTable_Invalid() =>
+        new SetDefaultOperation { Table = "", Column = "col", Value = "0" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    [Fact]
+    public void SetDefault_EmptyColumn_Invalid() =>
+        new SetDefaultOperation { Table = "t", Column = "", Value = "0" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    [Fact]
+    public void SetDefault_EmptyValue_Invalid() =>
+        new SetDefaultOperation { Table = "t", Column = "col", Value = "" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── drop_default ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DropDefault_Valid() =>
+        new DropDefaultOperation { Table = "t", Column = "col" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void DropDefault_EmptyTable_Invalid() =>
+        new DropDefaultOperation { Table = "", Column = "col" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── create_schema ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CreateSchema_Valid() =>
+        new CreateSchemaOperation { Schema = "myschema" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void CreateSchema_EmptySchema_Invalid()
+    {
+        var r = new CreateSchemaOperation { Schema = "" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("Schema");
+    }
+
+    // ── drop_schema ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DropSchema_Valid() =>
+        new DropSchemaOperation { Schema = "myschema" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void DropSchema_EmptySchema_Invalid() =>
+        new DropSchemaOperation { Schema = " " }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── create_enum ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CreateEnum_Valid() =>
+        new CreateEnumOperation { Name = "status", Values = ["active", "inactive"] }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void CreateEnum_EmptyName_Invalid()
+    {
+        var r = new CreateEnumOperation { Name = "", Values = ["a"] }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("name");
+    }
+
+    [Fact]
+    public void CreateEnum_EmptyValues_Invalid()
+    {
+        var r = new CreateEnumOperation { Name = "status", Values = [] }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("value");
+    }
+
+    [Fact]
+    public void CreateEnum_DuplicateValues_Invalid()
+    {
+        var r = new CreateEnumOperation { Name = "status", Values = ["a", "a"] }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("unique");
+    }
+
+    // ── drop_enum ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DropEnum_Valid() =>
+        new DropEnumOperation { Name = "status" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void DropEnum_EmptyName_Invalid() =>
+        new DropEnumOperation { Name = "" }.ValidateStructure().IsValid.Should().BeFalse();
+
+    // ── create_view ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CreateView_Valid() =>
+        new CreateViewOperation { Name = "v_users", Definition = "SELECT id FROM users" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void CreateView_EmptyName_Invalid()
+    {
+        var r = new CreateViewOperation { Name = "", Definition = "SELECT 1" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("name");
+    }
+
+    [Fact]
+    public void CreateView_EmptyDefinition_Invalid()
+    {
+        var r = new CreateViewOperation { Name = "v", Definition = "" }.ValidateStructure();
+        r.IsValid.Should().BeFalse();
+        r.Error.Should().Contain("definition");
+    }
+
+    // ── drop_view ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DropView_Valid() =>
+        new DropViewOperation { Name = "v_users" }.ValidateStructure().IsValid.Should().BeTrue();
+
+    [Fact]
+    public void DropView_EmptyName_Invalid() =>
+        new DropViewOperation { Name = "" }.ValidateStructure().IsValid.Should().BeFalse();
 }

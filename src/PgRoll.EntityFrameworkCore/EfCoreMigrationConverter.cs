@@ -18,6 +18,7 @@ using EfMigrationOperation = Microsoft.EntityFrameworkCore.Migrations.Operations
 using EfRenameColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameColumnOperation;
 using EfRenameIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameIndexOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
+using EfSql = Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation;
 
 namespace PgRoll.EntityFrameworkCore;
 
@@ -163,6 +164,10 @@ public static class EfCoreMigrationConverter
                         Table = dfk.Table,
                         Name = dfk.Name
                     });
+                    break;
+
+                case EfSql sql:
+                    pgrollOps.Add(new RawSqlOperation { Sql = sql.Sql });
                     break;
 
                 default:

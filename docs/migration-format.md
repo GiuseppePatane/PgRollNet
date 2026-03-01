@@ -46,7 +46,9 @@ Several operations accept a `column` or `columns[]` object:
   "type": "text",
   "nullable": false,
   "default": "''",
-  "primary_key": false
+  "primary_key": false,
+  "unique": false,
+  "references": null
 }
 ```
 
@@ -54,9 +56,13 @@ Several operations accept a `column` or `columns[]` object:
 |-------|------|-------------|
 | `name` | string | Column name |
 | `type` | string | PostgreSQL type (e.g. `text`, `integer`, `uuid`, `timestamp with time zone`) |
-| `nullable` | bool | Whether the column allows NULL |
+| `nullable` | bool | Whether the column allows NULL (default: `true`) |
 | `default` | string | SQL default expression (e.g. `now()`, `0`, `gen_random_uuid()`) |
 | `primary_key` | bool | Mark column as part of the primary key |
+| `unique` | bool | Add a `UNIQUE` constraint inline (emits `UNIQUE` after the column type) |
+| `references` | string | Add an inline foreign key in the form `other_table(col)` (emits `REFERENCES other_table(col)`) |
+
+> **Inline vs. explicit constraints:** `unique` and `references` are convenient shorthands for simple single-column constraints. For multi-column constraints, named constraints, or deferred foreign keys, use [`create_constraint`](./operations#create_constraint) instead.
 
 ## Full Example
 
@@ -69,7 +75,8 @@ Several operations accept a `column` or `columns[]` object:
       "table": "orders",
       "columns": [
         { "name": "id", "type": "bigserial", "nullable": false, "primary_key": true },
-        { "name": "user_id", "type": "bigint", "nullable": false },
+        { "name": "user_id", "type": "bigint", "nullable": false, "references": "users(id)" },
+        { "name": "ref_code", "type": "text", "unique": true },
         { "name": "total", "type": "numeric", "nullable": false, "default": "0" },
         { "name": "status", "type": "text", "nullable": false, "default": "'pending'" },
         { "name": "created_at", "type": "timestamp with time zone", "nullable": false, "default": "now()" }
@@ -81,15 +88,6 @@ Several operations accept a `column` or `columns[]` object:
       "table": "orders",
       "columns": ["user_id"],
       "unique": false
-    },
-    {
-      "type": "create_constraint",
-      "table": "orders",
-      "name": "FK_orders_users",
-      "constraint_type": "foreign_key",
-      "columns": ["user_id"],
-      "references_table": "users",
-      "references_columns": ["id"]
     }
   ]
 }

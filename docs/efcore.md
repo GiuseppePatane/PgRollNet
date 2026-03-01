@@ -80,8 +80,9 @@ The tool automatically resolves NuGet dependencies in both cases using the `.dep
 | `DropUniqueConstraintOperation` | `drop_constraint` |
 | `AddForeignKeyOperation` | `create_constraint` type=`foreign_key` |
 | `DropForeignKeyOperation` | `drop_constraint` |
+| `SqlOperation` | `raw_sql` |
 
-Operations with no pgroll equivalent (raw SQL, stored procedures, sequences, schema ops) are **skipped** and reported in the summary output.
+Operations with no pgroll equivalent (data seeding, sequences, schema ops) are **skipped** and reported in the summary output.
 
 ### Missing `up`/`down` expressions
 
@@ -97,6 +98,60 @@ After conversion, review the generated files and add `up` expressions where need
   "up": "first_name || ' ' || last_name"
 }
 ```
+
+### Raw SQL, Functions and Triggers
+
+In EF Core migrations, calls to `migrationBuilder.Sql(...)` produce a `SqlOperation`. These are automatically converted to pgroll `raw_sql` operations.
+
+This is the recommended way to create or drop PostgreSQL functions, triggers, stored procedures, and any other DDL not covered by the standard EF Core operations:
+
+```csharp
+// EF Core migration Up() method
+protected override void Up(MigrationBuilder migrationBuilder)
+{
+    // 1. Create a table the normal way
+    migrationBuilder.CreateTable("orders", t => new { ... });
+
+    // 2. Create a PostgreSQL function via raw SQL
+    migrationBuilder.Sql("""
+        CREATE OR REPLACE FUNCTION update_updated_at()
+        RETURNS TRIGGER LANGUAGE plpgsql AS $$
+        BEGIN
+          NEW.updated_at = now();
+          RETURN NEW;
+        END;
+        $$
+        """);
+
+    // 3. Attach the trigger
+    migrationBuilder.Sql("""
+        CREATE TRIGGER trg_orders_updated_at
+        BEFORE UPDATE ON orders
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at()
+        """);
+}
+```
+
+After conversion, the generated pgroll JSON will contain three operations in order:
+
+```json
+{
+  "name": "..._create_orders",
+  "operations": [
+    { "type": "create_table", "table": "orders", "columns": [ ... ] },
+    {
+      "type": "raw_sql",
+      "sql": "CREATE OR REPLACE FUNCTION update_updated_at() ..."
+    },
+    {
+      "type": "raw_sql",
+      "sql": "CREATE TRIGGER trg_orders_updated_at ..."
+    }
+  ]
+}
+```
+
+> **Rollback SQL:** The EF Core `SqlOperation` has no built-in rollback concept. After conversion, you can optionally add a `"rollback_sql"` field manually to each `raw_sql` block in the generated JSON (e.g. `"DROP FUNCTION IF EXISTS update_updated_at()"`). See [raw_sql](./operations#raw_sql) in the Operations Reference.
 
 ---
 
