@@ -1,5 +1,6 @@
 using System.CommandLine;
 using PgRoll.Cli.EfCore;
+using PgRoll.Core.Models;
 
 namespace PgRoll.Cli.Commands;
 
@@ -52,11 +53,13 @@ public static class EfCoreCommand
             Console.WriteLine($"Output   : {Path.GetFullPath(output.FullName)}");
             Console.WriteLine();
 
-            IReadOnlyList<LoadedMigration> migrations;
+            // Load the full migration list first so we can assign positions that
+            // reflect the real EF Core history order — even when --filter is used.
+            IReadOnlyList<LoadedMigration> allMigrations;
             try
             {
                 using var loader = MigrationAssemblyLoader.Create(assembly.FullName);
-                migrations = loader.LoadMigrations();
+                allMigrations = loader.LoadMigrations();
             }
             catch (Exception ex)
             {
@@ -65,8 +68,14 @@ public static class EfCoreCommand
                 return;
             }
 
-            if (filter is not null)
-                migrations = migrations
+            // Map each migration name → its 1-based position in the full EF Core history.
+            var positionMap = allMigrations
+                .Select((m, i) => (m.Name, pos: i + 1))
+                .ToDictionary(x => x.Name, x => x.pos);
+
+            var migrations = filter is null
+                ? allMigrations
+                : allMigrations
                     .Where(m => m.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
@@ -78,7 +87,8 @@ public static class EfCoreCommand
                 return;
             }
 
-            Console.WriteLine($"Found {migrations.Count} migration(s)\n");
+            var filterNote = filter is null ? "" : $" (filtered from {allMigrations.Count} total)";
+            Console.WriteLine($"Found {migrations.Count} migration(s){filterNote}\n");
 
             var written = 0;
             var totalSkipped = 0;
@@ -86,24 +96,31 @@ public static class EfCoreCommand
 
             foreach (var m in migrations)
             {
+                var position = positionMap[m.Name];
                 var result = ReflectionConverter.Convert(m.Name, m.UpOperations);
 
-                var path = Path.Combine(output.FullName, $"{m.Name}.json");
-                File.WriteAllText(path, result.Migration.Serialize());
+                // Prefix both the filename and the migration name with the zero-padded
+                // position so that alphabetical sort always yields the correct apply order,
+                // regardless of EF Core naming convention (timestamp or not).
+                var orderedName = $"{position:D4}_{m.Name}";
+                var orderedMigration = new Migration { Name = orderedName, Operations = result.Migration.Operations };
+
+                var path = Path.Combine(output.FullName, $"{orderedName}.json");
+                File.WriteAllText(path, orderedMigration.Serialize());
                 written++;
 
                 totalSkipped += result.Skipped.Count;
                 foreach (var s in result.Skipped)
                     allSkippedTypes.Add(s);
 
-                var opsLabel = result.Migration.Operations.Count switch
+                var opsLabel = orderedMigration.Operations.Count switch
                 {
                     0 => "(no schema ops)",
-                    1 => $"1 op  → {result.Migration.Operations[0].Type}",
+                    1 => $"1 op  → {orderedMigration.Operations[0].Type}",
                     var n => $"{n} ops"
                 };
 
-                Console.Write($"  ✓  {m.Name}  [{opsLabel}]");
+                Console.Write($"  ✓  [{position:D4}] {m.Name}  [{opsLabel}]");
 
                 if (result.Skipped.Count > 0)
                 {
@@ -116,8 +133,8 @@ public static class EfCoreCommand
                 Console.WriteLine();
 
                 // Print each pgroll operation on a sub-line when there are several
-                if (result.Migration.Operations.Count > 1)
-                    foreach (var op in result.Migration.Operations)
+                if (orderedMigration.Operations.Count > 1)
+                    foreach (var op in orderedMigration.Operations)
                         Console.WriteLine($"          • {op.Type}");
             }
 
