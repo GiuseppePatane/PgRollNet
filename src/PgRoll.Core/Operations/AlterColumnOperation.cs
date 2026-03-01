@@ -59,8 +59,6 @@ public sealed class AlterColumnOperation : IMigrationOperation
             return ValidationResult.Failure("Table name is required.");
         if (string.IsNullOrWhiteSpace(Column))
             return ValidationResult.Failure("Column name is required.");
-        if (DataType is not null && NotNull == true && Up is null)
-            return ValidationResult.Failure("'up' expression is required when changing data type with NOT NULL.");
         return ValidationResult.Success;
     }
 
@@ -77,9 +75,6 @@ public sealed class AlterColumnOperation : IMigrationOperation
 
         if (!schema.ColumnExists(Table, Column))
             return ValidationResult.Failure($"Column '{Column}' does not exist in table '{Table}'.");
-
-        if (DataType is not null && NotNull == true && Up is null)
-            return ValidationResult.Failure($"'up' expression is required when changing data type with NOT NULL.");
 
         if (Name is not null && schema.ColumnExists(Table, Name))
             return ValidationResult.Failure($"Column '{Name}' already exists in table '{Table}'.");

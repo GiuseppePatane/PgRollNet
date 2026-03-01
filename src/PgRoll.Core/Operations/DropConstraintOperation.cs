@@ -37,8 +37,9 @@ public sealed class DropConstraintOperation : IMigrationOperation
         if (string.IsNullOrWhiteSpace(Name))
             return ValidationResult.Failure("Constraint name is required.");
 
+        // Constraint already absent (e.g. cascade-dropped by a prior alter_column) — treat as no-op.
         if (!schema.ConstraintExists(Table, Name))
-            return ValidationResult.Failure($"Constraint '{Name}' does not exist on table '{Table}'.");
+            return ValidationResult.Success;
 
         return ValidationResult.Success;
     }

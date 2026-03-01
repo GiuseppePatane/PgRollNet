@@ -780,7 +780,7 @@ public sealed class PgMigrationExecutor
 
     private Task StartDropConstraint(DropConstraintOperation op, NpgsqlConnection conn, CancellationToken ct) =>
         ExecAsync(conn,
-            $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP CONSTRAINT {QuoteIdent(op.Name)}", ct);
+            $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP CONSTRAINT IF EXISTS {QuoteIdent(op.Name)}", ct);
 
     // ── rename_constraint ─────────────────────────────────────────────────────
 

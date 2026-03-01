@@ -39,7 +39,21 @@ public sealed class MigrationAssemblyLoader : IDisposable
     {
         var assembly = _context.LoadFromAssemblyPath(_assemblyPath);
 
-        var migrationTypes = assembly.GetTypes()
+        // GetTypes() throws ReflectionTypeLoadException when some types can't be resolved
+        // (e.g. ASP.NET Core Identity framework assemblies not present in the NuGet cache).
+        // We only need migration types, which never depend on those problematic types, so
+        // we gracefully fall back to the subset of types that loaded successfully.
+        Type[] allTypes;
+        try
+        {
+            allTypes = assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            allTypes = ex.Types.Where(t => t is not null).ToArray()!;
+        }
+
+        var migrationTypes = allTypes
             .Where(t => !t.IsAbstract && IsMigrationType(t))
             .OrderBy(t => GetMigrationId(t) ?? t.Name)   // sort by timestamp-prefixed ID, not class name
             .ToList();
