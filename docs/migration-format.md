@@ -1,11 +1,11 @@
 ---
 title: Migration File Format
-description: JSON schema, naming conventions, column definitions and serialization API.
+description: JSON and YAML schema, naming conventions, column definitions and serialization API.
 ---
 
 # Migration File Format
 
-A pgroll migration is a JSON file with two top-level fields.
+A pgroll migration is a JSON or YAML file with two top-level fields.
 
 ## Schema
 
@@ -23,18 +23,43 @@ A pgroll migration is a JSON file with two top-level fields.
 
 Every operation object **must** start with a `"type"` field that identifies the operation kind. All other field names use `snake_case`.
 
+## YAML Format
+
+Migrations can also be written in YAML (`.yaml` or `.yml`). Both formats are equivalent and fully interchangeable — `migrate`, `pending`, `start`, and `validate` all accept either format.
+
+```yaml
+name: 001_create_users
+operations:
+  - type: create_table
+    table: users
+    columns:
+      - name: id
+        type: bigserial
+        nullable: false
+        primary_key: true
+      - name: email
+        type: text
+        nullable: false
+      - name: created_at
+        type: timestamp with time zone
+        nullable: false
+        default: "now()"
+```
+
 ## Naming Convention
 
-Migration file names are typically prefixed with a timestamp or sequential number so they sort correctly when using `pgroll migrate`:
+Migration file names are typically prefixed with a timestamp or sequential number so they sort correctly when using `pgroll-net migrate`:
 
 ```
 001_create_users.json
-002_add_email_verified.json
+002_add_email_verified.yaml
 003_add_users_role_index.json
 20250801_165455_add_replacement_event.json
 ```
 
-The `name` field inside the JSON must match (or at least be unique across all migrations applied to the same schema).
+When using `pgroll-net efcore convert`, output files are automatically prefixed with a 4-digit index (`0001_`, `0002_`, …) that reflects the canonical EF Core apply order.
+
+The `name` field inside the file must be unique across all migrations applied to the same schema.
 
 ## Column Definition
 
@@ -98,8 +123,14 @@ Several operations accept a `column` or `columns[]` object:
 From .NET code, use the `Migration` model in `PgRoll.Core`:
 
 ```csharp
-// Deserialize from JSON
+// Deserialize from JSON string
 var migration = Migration.Deserialize(jsonString);
+
+// Deserialize from YAML string
+var migration = Migration.DeserializeYaml(yamlString);
+
+// Load from file (auto-detects format from extension: .yaml/.yml vs .json)
+var migration = await Migration.LoadAsync(filePath);
 
 // Serialize back to JSON
 var json = migration.Serialize();

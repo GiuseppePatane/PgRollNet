@@ -1,6 +1,6 @@
 # pgroll.NET
 
-[![CI](https://github.com/gpatane/pgrool/actions/workflows/ci.yml/badge.svg)](https://github.com/gpatane/pgrool/actions/workflows/ci.yml)
+[![CI](https://github.com/GiuseppePatane/PgRollNet/actions/workflows/ci.yml/badge.svg)](https://github.com/GiuseppePatane/PgRollNet/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/PgRoll.PostgreSQL.svg)](https://www.nuget.org/packages/PgRoll.PostgreSQL)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -12,9 +12,10 @@ Zero-downtime PostgreSQL schema migrations for .NET — a port of [pgroll](https
 - **Instant rollback** — roll back any migration without data loss
 - **20+ operations** — create/drop tables, columns, indexes, constraints, enums, views, schemas, and more
 - **EF Core integration** — convert EF Core migrations to pgroll JSON automatically
-- **CLI tool** — `pgroll init|start|complete|rollback|status|validate|migrate|pending|pull`
+- **CLI tool** — `pgroll-net init|start|complete|rollback|status|validate|migrate|pending|pull|baseline|latest|new`
+- **YAML support** — write migrations in JSON or YAML
 - **Offline validation** — validate migration files without a database connection
-- **Advisory locks** — concurrent-safe execution across multiple instances
+- **Global flags** — `--schema`, `--pgroll-schema`, `--lock-timeout`, `--role`, `--verbose`
 
 ## Installation
 
@@ -37,18 +38,40 @@ dotnet add package PgRoll.EntityFrameworkCore   # optional EF Core integration
 
 ```bash
 # Initialize pgroll state in your database
-pgroll init --connection "Host=localhost;Database=mydb;Username=postgres"
+pgroll-net init --connection "Host=localhost;Database=mydb;Username=postgres"
+
+# Scaffold a new migration file
+pgroll-net new 01_create_users --output ./migrations
 
 # Start a migration
-pgroll start migration.json --connection "..."
+pgroll-net start ./migrations/01_create_users.json --connection "..."
 
 # Complete (make permanent) or roll back
-pgroll complete --connection "..."
-pgroll rollback --connection "..."
+pgroll-net complete --connection "..."
+pgroll-net rollback --connection "..."
 
-# Apply all pending migrations from a directory
-pgroll migrate ./migrations --connection "..."
+# Apply all pending migrations from a directory (JSON and YAML supported)
+pgroll-net migrate ./migrations --connection "..."
+
+# Mark current database state as baseline (no-op migration)
+pgroll-net baseline my_baseline --connection "..."
+
+# Print the name of the latest applied migration
+pgroll-net latest --connection "..."
 ```
+
+### Global flags
+
+All commands accept these global options:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--connection` | — | PostgreSQL connection string (required for DB commands) |
+| `--schema` | `public` | Target user schema |
+| `--pgroll-schema` | `pgroll` | Internal pgroll state schema |
+| `--lock-timeout` | `500` | DDL lock timeout in milliseconds |
+| `--role` | — | PostgreSQL role to `SET` before executing DDL |
+| `--verbose` | `false` | Enable verbose logging |
 
 ### Migration file format
 
@@ -69,28 +92,45 @@ pgroll migrate ./migrations --connection "..."
 }
 ```
 
+YAML format is also supported (`.yaml` / `.yml`):
+
+```yaml
+name: 01_create_users
+operations:
+  - type: create_table
+    table: users
+    columns:
+      - name: id
+        type: serial
+        primaryKey: true
+      - name: email
+        type: varchar(255)
+        unique: true
+        nullable: false
+      - name: name
+        type: text
+```
+
 ### .NET API
 
 ```csharp
-using PgRoll.Core;
 using PgRoll.PostgreSQL;
 
 var connectionString = "Host=localhost;Database=mydb;Username=postgres";
 
-var stateStore  = new PgStateStore(connectionString);
-var schemaReader = new PgSchemaReader(connectionString);
-var executor    = new PgMigrationExecutor(stateStore, schemaReader, connectionString);
+var executor = new PgMigrationExecutor(connectionString);
 
-await executor.InitAsync();
+await executor.InitializeAsync();
 await executor.StartAsync(migration);
 await executor.CompleteAsync();
+// or: await executor.RollbackAsync();
 ```
 
 ### EF Core integration
 
 ```bash
 # Convert an EF Core migration assembly to pgroll JSON files
-pgroll efcore convert --assembly MyApp.Migrations.dll --output ./pgroll-migrations
+pgroll-net efcore convert --assembly MyApp.Migrations.dll --output ./pgroll-migrations
 ```
 
 Or use the API directly:
@@ -105,9 +145,33 @@ var result = converter.Convert("AddUserTable", efCoreMigrationOperations);
 // result.Skipped    — list of operation types that couldn't be converted
 ```
 
-## Documentation
+## Supported Operations
 
-Full documentation: [https://github.com/gpatane/pgrool](https://github.com/gpatane/pgrool)
+| Operation | Description |
+|-----------|-------------|
+| `create_table` | Create a new table |
+| `drop_table` | Drop a table (soft-delete during migration window) |
+| `rename_table` | Rename a table |
+| `add_column` | Add a column (with optional backfill via `up` expression) |
+| `drop_column` | Drop a column |
+| `rename_column` | Rename a column |
+| `alter_column` | Change type, nullability, default, rename — with dual-write via triggers |
+| `create_index` | Create an index (CONCURRENTLY) |
+| `drop_index` | Drop an index (CONCURRENTLY) |
+| `create_constraint` | Add CHECK or FOREIGN KEY constraint (NOT VALID + VALIDATE) |
+| `drop_constraint` | Drop a constraint |
+| `rename_constraint` | Rename a constraint |
+| `set_not_null` | Add NOT NULL constraint |
+| `drop_not_null` | Remove NOT NULL constraint |
+| `set_default` | Set column default |
+| `drop_default` | Drop column default |
+| `create_schema` | Create a schema |
+| `drop_schema` | Drop a schema |
+| `create_enum` | Create an enum type |
+| `drop_enum` | Drop an enum type |
+| `create_view` | Create a view |
+| `drop_view` | Drop a view |
+| `raw_sql` | Execute arbitrary SQL with optional rollback SQL |
 
 ## License
 

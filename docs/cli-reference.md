@@ -1,52 +1,139 @@
 ---
 title: CLI Reference
-description: All pgroll commands and options — init, start, complete, rollback, status, validate, pending, migrate, pull, efcore convert.
+description: All pgroll-net commands and global options.
 outline: deep
 ---
 
 # CLI Reference
 
-All commands accept the following global options:
+Install the tool:
 
-| Option | Short | Default | Description |
-|--------|-------|---------|-------------|
-| `--connection` | | *(required)* | PostgreSQL connection string |
-| `--schema` | | `public` | Target schema name |
+```bash
+dotnet tool install -g PgRoll.Cli
+```
+
+## Global Options
+
+All commands accept these options (passed before or after the command name):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--connection` | *(required for DB commands)* | PostgreSQL connection string |
+| `--schema` | `public` | Target user schema |
+| `--pgroll-schema` | `pgroll` | Internal pgroll state schema |
+| `--lock-timeout` | `500` | DDL lock timeout in milliseconds |
+| `--role` | — | PostgreSQL role to `SET` before executing DDL |
+| `--verbose` | `false` | Enable verbose logging |
 
 ---
 
-## `pgroll init`
+## `pgroll-net new [name]`
+
+Interactively scaffold a new migration file. Guides you through selecting operation types and filling in the required fields. The file is created with an **auto-incremented numeric prefix** that guarantees correct apply order.
+
+```
+pgroll-net new [name] [--output <dir>]
+```
+
+| Argument/Option | Description |
+|-----------------|-------------|
+| `name` | Migration name (optional — you will be prompted if omitted) |
+| `--output` | Directory where the file is created (default: current directory; created if it does not exist) |
+
+**Ordering:** the command scans the output directory for files starting with a numeric prefix (`0001_`, `0042_`, …), finds the highest number, and uses `max + 1`. Starts at `0001` if no prefixed files exist. Compatible with `pgroll-net efcore convert` output.
+
+**Example session:**
+
+```
+$ pgroll-net new --output ./migrations
+
+Migration name: create_orders
+
+Add operations to this migration (press Enter to skip optional fields).
+
+Add an operation? [Y/n]
+
+  Operation types:
+   1. create_table          Create a new table with columns
+   2. drop_table            Drop an existing table
+   3. rename_table          Rename a table
+   4. add_column            Add a column to a table
+   5. alter_column          Change type, nullability, default or rename a column
+  ...
+  23. raw_sql               Execute arbitrary SQL
+
+  Select (1-23): 1
+  → create_table
+
+  table name: orders
+
+  Define columns:
+    column name: id
+    type: bigserial
+    nullable? [true/false, default true]: false
+    primary_key? [true/false, default false]: true
+    ...
+
+  Add another column? [y/N] n
+
+Add another operation? [Y/n] n
+
+Created: ./migrations/0001_create_orders.json
+```
+
+**Output file (`0001_create_orders.json`):**
+
+```json
+{
+  "name": "0001_create_orders",
+  "operations": [
+    {
+      "type": "create_table",
+      "table": "orders",
+      "columns": [
+        { "name": "id", "type": "bigserial", "nullable": false, "primary_key": true }
+      ]
+    }
+  ]
+}
+```
+
+**Supported operation types in the wizard:** all 23 types — `create_table`, `drop_table`, `rename_table`, `add_column`, `drop_column`, `rename_column`, `alter_column`, `create_index`, `drop_index`, `create_constraint`, `drop_constraint`, `rename_constraint`, `set_not_null`, `drop_not_null`, `set_default`, `drop_default`, `create_schema`, `drop_schema`, `create_enum`, `drop_enum`, `create_view`, `drop_view`, `raw_sql`.
+
+---
+
+## `pgroll-net init`
 
 Initialize pgroll in the target database. Creates the `pgroll.migrations` tracking table if it does not already exist. Safe to run multiple times.
 
 ```
-pgroll init --connection <conn>
+pgroll-net init --connection <conn>
 ```
 
 **Example:**
 
 ```bash
-pgroll init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+pgroll-net init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
 ---
 
-## `pgroll start <file>`
+## `pgroll-net start <file>`
 
-Start a migration from a JSON file. Executes the **Start** phase for every operation in the file and records the migration in `pgroll.migrations` with `done = false`.
+Start a migration from a JSON or YAML file. Executes the **Start** phase for every operation in the file and records the migration in `pgroll.migrations` with `done = false`.
 
 ```
-pgroll start <file> --connection <conn> [--schema <name>]
+pgroll-net start <file> --connection <conn> [--schema <name>]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<file>` | Path to a pgroll JSON migration file |
+| `<file>` | Path to a pgroll JSON or YAML migration file |
 
 **Example:**
 
 ```bash
-pgroll start migrations/002_add_email_verified.json \
+pgroll-net start migrations/002_add_email_verified.json \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
@@ -54,44 +141,44 @@ Only one migration can be active at a time. Running `start` while another migrat
 
 ---
 
-## `pgroll complete`
+## `pgroll-net complete`
 
 Complete the currently active migration. Executes the **Complete** phase for every operation and marks the migration as `done = true`.
 
 ```
-pgroll complete --connection <conn> [--schema <name>]
+pgroll-net complete --connection <conn> [--schema <name>]
 ```
 
 **Example:**
 
 ```bash
-pgroll complete --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+pgroll-net complete --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
 ---
 
-## `pgroll rollback`
+## `pgroll-net rollback`
 
 Roll back the currently active migration to the pre-Start state. Executes the **Rollback** phase for every operation and removes the migration record.
 
 ```
-pgroll rollback --connection <conn> [--schema <name>]
+pgroll-net rollback --connection <conn> [--schema <name>]
 ```
 
 **Example:**
 
 ```bash
-pgroll rollback --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+pgroll-net rollback --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
 ---
 
-## `pgroll status`
+## `pgroll-net status`
 
 Show the currently active (in-progress) migration, if any.
 
 ```
-pgroll status --connection <conn> [--schema <name>]
+pgroll-net status --connection <conn> [--schema <name>]
 ```
 
 **Output examples:**
@@ -106,40 +193,45 @@ No active migration.
 
 ---
 
-## `pgroll validate <file>`
+## `pgroll-net validate <file>`
 
 Validate a migration file against the current database schema without executing it. Useful in CI to catch errors before deployment.
 
 ```
-pgroll validate <file> --connection <conn> [--schema <name>]
+pgroll-net validate <file> [--connection <conn>] [--schema <name>] [--offline]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `<file>` | Path to a pgroll JSON migration file |
+| Argument/Option | Description |
+|-----------------|-------------|
+| `<file>` | Path to a pgroll JSON or YAML migration file |
+| `--offline` | Validate structure only — no database connection required |
 
 Exits with code `0` if valid, `1` if there are validation errors.
 
-**Example:**
+**Examples:**
 
 ```bash
-pgroll validate migrations/004_drop_legacy_column.json \
+# Online validation (checks table/column existence against live schema)
+pgroll-net validate migrations/004_drop_legacy_column.json \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+
+# Offline structural validation (no DB needed)
+pgroll-net validate migrations/004_drop_legacy_column.json --offline
 ```
 
 ---
 
-## `pgroll pending <directory>`
+## `pgroll-net pending <directory>`
 
 List migration files in a directory that have not yet been applied to the database.
 
 ```
-pgroll pending <directory> --connection <conn> [--schema <name>]
+pgroll-net pending <directory> --connection <conn> [--schema <name>]
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `<directory>` | Directory containing pgroll JSON files |
+| `<directory>` | Directory containing pgroll JSON/YAML files |
 
 **Exit codes:**
 
@@ -152,7 +244,7 @@ pgroll pending <directory> --connection <conn> [--schema <name>]
 **Example:**
 
 ```bash
-pgroll pending ./migrations \
+pgroll-net pending ./migrations \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
@@ -171,44 +263,50 @@ Up to date. No pending migrations.
 Designed for use in CI/CD pipelines:
 
 ```bash
-if pgroll pending ./migrations --connection "$DB_CONN"; then
+if pgroll-net pending ./migrations --connection "$DB_CONN"; then
   echo "No migrations to apply, skipping"
 else
-  pgroll migrate ./migrations --connection "$DB_CONN"
+  pgroll-net migrate ./migrations --connection "$DB_CONN"
 fi
 ```
 
 ---
 
-## `pgroll migrate <directory>`
+## `pgroll-net migrate <directory>`
 
-Apply all pending migrations from a directory. Discovers `*.json` files sorted alphabetically, skips migrations that have already been completed (by checking `pgroll.migrations`), and for each pending migration runs Start → Complete in sequence.
+Apply all pending migrations from a directory. Discovers `*.json`, `*.yaml`, and `*.yml` files sorted alphabetically, skips migrations already completed, and for each pending migration runs Start → Complete in sequence.
 
 ```
-pgroll migrate <directory> --connection <conn> [--schema <name>]
+pgroll-net migrate <directory> --connection <conn> [--schema <name>] [--continue-on-error]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `<directory>` | Directory containing pgroll JSON files |
+| Argument/Option | Description |
+|-----------------|-------------|
+| `<directory>` | Directory containing pgroll migration files |
+| `--continue-on-error` | Log a warning and continue instead of stopping on migration failure |
 
 **Example:**
 
 ```bash
-pgroll migrate ./migrations \
+pgroll-net migrate ./migrations \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+
+# Skip failing migrations (useful during EF Core conversion adoption)
+pgroll-net migrate ./migrations \
+  --connection "..." \
+  --continue-on-error
 ```
 
-**Note:** This command is designed for CI/CD pipelines where all migrations should be applied atomically. It does not support the expand/contract multi-deployment pattern — use `start` + `complete` separately for zero-downtime workflows.
+**Note:** This command is designed for CI/CD pipelines where all migrations should be applied sequentially. It does not support the expand/contract multi-deployment pattern — use `start` + `complete` separately for zero-downtime workflows.
 
 ---
 
-## `pgroll pull <directory>`
+## `pgroll-net pull <directory>`
 
-Write the completed migration history to JSON files in a directory. One file is created per completed migration, named `{migration_name}.json`. Useful for reconstructing the migration history from the database.
+Write the completed migration history to JSON files in a directory. One file is created per completed migration. Useful for reconstructing the migration history from the database.
 
 ```
-pgroll pull <directory> --connection <conn> [--schema <name>]
+pgroll-net pull <directory> --connection <conn> [--schema <name>]
 ```
 
 | Argument | Description |
@@ -218,59 +316,87 @@ pgroll pull <directory> --connection <conn> [--schema <name>]
 **Example:**
 
 ```bash
-pgroll pull ./migrations-backup \
+pgroll-net pull ./migrations-backup \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
 ---
 
-## `pgroll efcore convert`
+## `pgroll-net baseline <name>`
+
+Record the current database state as a baseline — inserts a completed migration record with no operations. Useful when adopting pgroll on an existing database that was not migrated with pgroll.
+
+```
+pgroll-net baseline <name> --connection <conn> [--schema <name>]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | Name to use for the baseline migration record |
+
+**Example:**
+
+```bash
+pgroll-net baseline initial_state \
+  --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+```
+
+After running `baseline`, pgroll will treat the database as already having `initial_state` applied and will only run subsequent migrations.
+
+---
+
+## `pgroll-net latest`
+
+Print the name of the most recently completed migration.
+
+```
+pgroll-net latest --connection <conn> [--schema <name>]
+```
+
+**Example:**
+
+```bash
+pgroll-net latest --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+# → 004_add_users_index
+```
+
+Exits with code `1` if no migration has been applied yet.
+
+---
+
+## `pgroll-net efcore convert`
 
 Discover all EF Core migrations in a compiled assembly and convert them to pgroll JSON files. Supports EF Core 7.x, 8.x, 9.x and later.
 
 ```
-pgroll efcore convert --assembly <dll> [--output <dir>] [--filter <string>]
+pgroll-net efcore convert --assembly <dll> [--output <dir>] [--filter <string>]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--assembly` | *(required)* | Path to the compiled EF Core migrations assembly (`.dll`) |
-| `--output` | `pgroll-migrations` | Output directory for pgroll JSON files (created if it does not exist) |
+| `--output` | `pgroll-migrations` | Output directory (created if it does not exist) |
 | `--filter` | | Only convert migrations whose name contains this string (case-insensitive) |
+
+Output files are prefixed with a 4-digit position index so alphabetical sort always matches EF Core's apply order:
+
+```
+0001_InitialCreate.json
+0002_AddEmailVerified.json
+0003_AddUsersIndex.json
+```
 
 **Example:**
 
 ```bash
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly ./bin/Release/net8.0/MyApp.Migrations.dll \
   --output ./pgroll-migrations
 
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly ./bin/Release/net8.0/MyApp.Migrations.dll \
   --output ./pgroll-migrations \
   --filter "AddUser"
-```
-
-**Output:**
-
-```
-Assembly : /path/to/MyApp.Migrations.dll
-Output   : /path/to/pgroll-migrations
-
-Found 12 migration(s)
-
-  ✓  20240101_InitialCreate  [5 ops]
-          • create_table
-          • create_table
-          • create_index
-          • create_constraint
-          • create_constraint
-  ✓  20240201_AddEmailVerified  [1 op  → add_column]
-  ✓  20240301_AddStoredProcedure  [(no schema ops)]  skip: SqlOperation×2
-
-Written  : 12 file(s) → /path/to/pgroll-migrations
-Skipped  : 2 unsupported operation(s) (SqlOperation)
-           Sql ops (stored procedures, raw DDL) have no pgroll equivalent.
 ```
 
 See [EF Core Integration](efcore.md) for a complete guide.

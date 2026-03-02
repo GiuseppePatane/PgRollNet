@@ -8,12 +8,12 @@ outline: deep
 
 pgroll provides two integration points for teams using EF Core Migrations:
 
-1. **`pgroll efcore convert`** — CLI command that reads a compiled migrations assembly and writes pgroll JSON files
+1. **`pgroll-net efcore convert`** — CLI command that reads a compiled migrations assembly and writes pgroll JSON files
 2. **`PgRoll.EntityFrameworkCore`** — .NET library for programmatic conversion
 
 ---
 
-## CLI: `pgroll efcore convert`
+## CLI: `pgroll-net efcore convert`
 
 The simplest way to migrate an existing EF Core project to pgroll.
 
@@ -25,7 +25,7 @@ The simplest way to migrate an existing EF Core project to pgroll.
 ### Usage
 
 ```bash
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly <path-to-dll> \
   [--output <output-dir>] \
   [--filter <name-substring>]
@@ -49,12 +49,12 @@ If your migrations project is a library referenced by a runnable project (API, W
 
 ```bash
 # From the migrations-only project bin (deps resolved via .deps.json + NuGet cache)
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly src/MyApp.Migrations/bin/Release/net8.0/MyApp.Migrations.dll \
   --output pgroll-migrations
 
 # From the API project bin (all DLLs are present)
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly src/MyApp.Api/bin/Debug/net8.0/MyApp.Migrations.dll \
   --output pgroll-migrations
 ```
@@ -98,7 +98,7 @@ The tool automatically resolves NuGet dependencies in both cases using the `.dep
 
 Operations with no direct equivalent (`AlterDatabaseOperation`, `AlterTableOperation`) are **skipped** and reported in the summary output.
 
-> ¹ `RenameSchemaOperation` is a Npgsql provider-specific operation not present in standard EF Core. It is handled only by the CLI converter (`pgroll efcore convert`) which matches operations by type name at runtime. The `PgRoll.EntityFrameworkCore` library does not handle it (the type does not exist in `Microsoft.EntityFrameworkCore.Relational`).
+> ¹ `RenameSchemaOperation` is a Npgsql provider-specific operation not present in standard EF Core. It is handled only by the CLI converter (`pgroll-net efcore convert`) which matches operations by type name at runtime. The `PgRoll.EntityFrameworkCore` library does not handle it (the type does not exist in `Microsoft.EntityFrameworkCore.Relational`).
 
 ### Missing `up`/`down` expressions
 
@@ -316,7 +316,7 @@ If an explicit `ColumnType` string is already set on the EF Core operation (e.g.
 ### Step 1 — Convert existing migrations
 
 ```bash
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly bin/Release/net8.0/MyApp.Migrations.dll \
   --output pgroll-migrations
 ```
@@ -327,11 +327,11 @@ Open the generated JSON files. For any `add_column` or `alter_column` without an
 
 ### Step 3 — Apply to database
 
-Use `pgroll migrate` to apply all converted migrations at once (initial catch-up), or `pgroll start` / `pgroll complete` for the zero-downtime expand/contract workflow going forward.
+Use `pgroll-net migrate` to apply all converted migrations at once (initial catch-up), or `pgroll-net start` / `pgroll-net complete` for the zero-downtime expand/contract workflow going forward.
 
 ```bash
 # Catch-up: apply all at once
-pgroll migrate ./pgroll-migrations \
+pgroll-net migrate ./pgroll-migrations \
   --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 ```
 
@@ -339,9 +339,13 @@ pgroll migrate ./pgroll-migrations \
 
 Since pgroll now manages the schema, you can stop calling `Database.MigrateAsync()` from your application. Optionally keep `__EFMigrationsHistory` for reference but do not let EF Core apply new migrations.
 
-### Step 5 — Write new migrations in pgroll JSON
+### Step 5 — Write new migrations in pgroll format
 
-Future schema changes are authored as pgroll JSON files instead of EF Core migrations.
+Future schema changes are authored as pgroll JSON or YAML files instead of EF Core migrations. Use `pgroll-net new` to scaffold them:
+
+```bash
+pgroll-net new 0025_add_audit_log --output ./pgroll-migrations
+```
 
 ---
 

@@ -14,7 +14,7 @@ hero:
       link: /cli-reference
     - theme: alt
       text: View on GitHub
-      link: https://github.com/your-org/pgrool
+      link: https://github.com/GiuseppePatane/PgRollNet
 
 features:
   - icon: 🔄
@@ -35,27 +35,30 @@ features:
 
   - icon: 🚀
     title: CD-Ready
-    details: pgroll pending exits with code 1 when migrations are pending — plug it directly into GitHub Actions, Azure DevOps, or Kubernetes init containers.
+    details: pgroll-net pending exits with code 1 when migrations are pending — plug it directly into GitHub Actions, Azure DevOps, or Kubernetes init containers.
 
   - icon: 🏗️
     title: .NET Native
-    details: Built on .NET 10 with Npgsql. Available as a dotnet global tool (pgroll) and as NuGet libraries (PgRoll.PostgreSQL, PgRoll.EntityFrameworkCore).
+    details: Built on .NET 10 with Npgsql. Available as a dotnet global tool (pgroll-net) and as NuGet libraries (PgRoll.PostgreSQL, PgRoll.EntityFrameworkCore).
 ---
 
 ## Quick Start
 
 ```bash
 # Install
-dotnet tool install -g pgroll
+dotnet tool install -g PgRoll.Cli
 
 # Initialize pgroll in your database
-pgroll init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+pgroll-net init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+
+# Scaffold a new migration file
+pgroll-net new 001_create_users --output ./migrations
 
 # Start a migration
-pgroll start 001_create_users.json --connection "..."
+pgroll-net start ./migrations/001_create_users.json --connection "..."
 
 # Complete when your new app version is deployed and healthy
-pgroll complete --connection "..."
+pgroll-net complete --connection "..."
 ```
 
 ## How it works

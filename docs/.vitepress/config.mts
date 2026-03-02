@@ -57,7 +57,7 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/your-org/pgrool' },
+      { icon: 'github', link: 'https://github.com/GiuseppePatane/PgRollNet' },
     ],
 
     footer: {
@@ -70,7 +70,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/your-org/pgrool/edit/main/docs/:path',
+      pattern: 'https://github.com/GiuseppePatane/PgRollNet/edit/master/docs/:path',
       text: 'Edit this page on GitHub',
     },
   },
