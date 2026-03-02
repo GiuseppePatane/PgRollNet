@@ -109,13 +109,13 @@ public class ConstraintValidationTests
     }
 
     [Fact]
-    public void DropConstraint_ConstraintDoesNotExist_IsInvalid()
+    public void DropConstraint_ConstraintDoesNotExist_IsValid()
     {
+        // Treat absent constraint as a no-op (idempotent): useful when a prior
+        // alter_column.Complete already cascade-dropped the constraint.
         var schema = BuildSchema("users", ["id"]);
         var op = new DropConstraintOperation { Table = "users", Name = "missing_constraint" };
-        var result = op.Validate(schema);
-        result.IsValid.Should().BeFalse();
-        result.Error.Should().Contain("missing_constraint");
+        op.Validate(schema).IsValid.Should().BeTrue();
     }
 
     [Fact]

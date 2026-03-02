@@ -275,8 +275,10 @@ public class ConstraintLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DropConstraint_DoesNotExist_ThrowsOnStart()
+    public async Task DropConstraint_DoesNotExist_IsNoOp()
     {
+        // A drop_constraint targeting a constraint that does not exist should succeed silently
+        // (idempotent) — useful when a prior alter_column.Complete already cascade-dropped it.
         await ExecSqlAsync("CREATE TABLE no_chk (id serial PRIMARY KEY, n int)");
 
         var migration = Migration.Deserialize("""
@@ -291,6 +293,6 @@ public class ConstraintLifecycleTests(PostgresFixture postgres) : IAsyncLifetime
             """);
 
         var act = async () => await _executor.StartAsync(migration);
-        await act.Should().ThrowAsync<InvalidMigrationError>();
+        await act.Should().NotThrowAsync();
     }
 }

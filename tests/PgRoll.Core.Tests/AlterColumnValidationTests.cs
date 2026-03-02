@@ -42,13 +42,13 @@ public class AlterColumnValidationTests
     }
 
     [Fact]
-    public void AlterColumn_DataTypeChangeWithNotNull_RequiresUp()
+    public void AlterColumn_DataTypeChangeWithNotNull_IsValidWithoutUp()
     {
+        // EF Core regularly emits alter_column with DataType + NotNull but no Up expression
+        // (e.g. when the column already has a compatible default). We allow it.
         var schema = BuildSchema(("users", ["id", "name"]));
         var op = new AlterColumnOperation { Table = "users", Column = "name", DataType = "int", NotNull = true };
-        var result = op.Validate(schema);
-        result.IsValid.Should().BeFalse();
-        result.Error.Should().Contain("up");
+        op.Validate(schema).IsValid.Should().BeTrue();
     }
 
     [Fact]

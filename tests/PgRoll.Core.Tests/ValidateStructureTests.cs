@@ -126,12 +126,11 @@ public class ValidateStructureTests
         new AlterColumnOperation { Table = "t", Column = "c", DataType = "bigint" }.ValidateStructure().IsValid.Should().BeTrue();
 
     [Fact]
-    public void AlterColumn_DataTypeWithNotNullNoUp_Invalid()
+    public void AlterColumn_DataTypeWithNotNullNoUp_IsValid()
     {
+        // EF Core emits DataType + NotNull without Up — allow it (no offline constraint).
         var op = new AlterColumnOperation { Table = "t", Column = "c", DataType = "bigint", NotNull = true };
-        var r = op.ValidateStructure();
-        r.IsValid.Should().BeFalse();
-        r.Error.Should().Contain("up");
+        op.ValidateStructure().IsValid.Should().BeTrue();
     }
 
     [Fact]
