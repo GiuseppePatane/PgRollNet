@@ -25,9 +25,32 @@ public static class StartCommand
                 return;
             }
 
+            Console.WriteLine($"Starting migration '{migration.Name}' ({migration.Operations.Count} operation(s))...");
+            for (var i = 0; i < migration.Operations.Count; i++)
+                Console.WriteLine($"  [{i + 1}/{migration.Operations.Count}] {migration.Operations[i].Describe()}");
+            Console.WriteLine();
+
             var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+
+            long lastTotal = 0;
+            string? lastTable = null;
+            executor.BackfillProgress = new Progress<BackfillProgress>(p =>
+            {
+                lastTotal = p.TotalRowsUpdated;
+                lastTable = p.Table;
+                var line = $"  Backfilling {p.Table}: batch {p.BatchNumber}, {p.TotalRowsUpdated:N0} rows updated...";
+                Console.Write($"\r{line.PadRight(Console.WindowWidth - 1)}");
+            });
+
             await executor.StartAsync(migration);
-            Console.WriteLine($"Migration '{migration.Name}' started. Run 'pgroll complete' to finalize.");
+
+            if (lastTable is not null)
+            {
+                Console.WriteLine($"\r  ✓ Backfill complete: {lastTotal:N0} rows updated on {lastTable}.".PadRight(Console.WindowWidth - 1));
+                Console.WriteLine();
+            }
+
+            Console.WriteLine($"✓ Migration '{migration.Name}' started. Run 'pgroll-net complete' to finalize.");
 
         }, dryRunOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
 

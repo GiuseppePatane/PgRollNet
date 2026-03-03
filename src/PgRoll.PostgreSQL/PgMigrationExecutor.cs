@@ -25,6 +25,7 @@ public sealed class PgMigrationExecutor
     private readonly ILogger<PgMigrationExecutor> _logger;
     private readonly string _schemaName;
     private readonly string? _role;
+    private readonly int _lockTimeoutMs;
 
     /// <summary>
     /// Optional progress reporter for backfill operations.
@@ -37,11 +38,13 @@ public sealed class PgMigrationExecutor
         string schemaName = "public",
         string pgrollSchema = "pgroll",
         string? role = null,
+        int lockTimeoutMs = 500,
         ILogger<PgMigrationExecutor>? logger = null)
     {
         _dataSource = dataSource;
         _schemaName = schemaName;
         _role = role;
+        _lockTimeoutMs = lockTimeoutMs;
         _logger = logger ?? NullLogger<PgMigrationExecutor>.Instance;
         _stateStore = new PgStateStore(dataSource, pgrollSchema);
         _schemaReader = new PgSchemaReader(dataSource);
@@ -54,20 +57,15 @@ public sealed class PgMigrationExecutor
         int lockTimeoutMs = 500,
         string? role = null,
         ILogger<PgMigrationExecutor>? logger = null)
-        : this(BuildDataSource(connectionString, lockTimeoutMs), schemaName, pgrollSchema, role, logger)
+        : this(NpgsqlDataSource.Create(connectionString), schemaName, pgrollSchema, role, lockTimeoutMs, logger)
     {
-    }
-
-    private static NpgsqlDataSource BuildDataSource(string connectionString, int lockTimeoutMs)
-    {
-        var csb = new NpgsqlConnectionStringBuilder(connectionString);
-        csb.Options = $"-c lock_timeout={lockTimeoutMs}ms";
-        return NpgsqlDataSource.Create(csb.ToString());
     }
 
     private async ValueTask<NpgsqlConnection> OpenConnectionAsync(CancellationToken ct)
     {
         var conn = await _dataSource.OpenConnectionAsync(ct);
+        if (_lockTimeoutMs > 0)
+            await new NpgsqlCommand($"SET lock_timeout = '{_lockTimeoutMs}ms'", conn).ExecuteNonQueryAsync(ct);
         if (_role is not null)
             await new NpgsqlCommand($"SET ROLE {_role}", conn).ExecuteNonQueryAsync(ct);
         return conn;
@@ -99,6 +97,25 @@ public sealed class PgMigrationExecutor
             throw new MigrationAlreadyActiveError(active.Name);
 
         _logger.LogInformation("Starting migration '{Name}'", migration.Name);
+
+        // Register the migration as active in the state store BEFORE executing any operations.
+        // This is write-ahead: if the process dies mid-execution, `pgroll rollback` can find the
+        // record (done=false) and clean up all artifacts, even without an in-process catch block.
+        var migrationJson = migration.Serialize();
+        var lastCompleted = (await _stateStore.GetHistoryAsync(_schemaName, ct))
+            .LastOrDefault(r => r.Done)?.Name;
+
+        var record = new MigrationRecord(
+            Schema: _schemaName,
+            Name: migration.Name,
+            MigrationJson: migrationJson,
+            CreatedAt: DateTimeOffset.UtcNow,
+            UpdatedAt: DateTimeOffset.UtcNow,
+            Parent: lastCompleted,
+            Done: false
+        );
+
+        await _stateStore.RecordStartedAsync(record, ct);
 
         // Track which operations have been started so we can roll them back if a later one fails.
         // We validate each operation against a fresh snapshot read just before executing it —
@@ -152,24 +169,20 @@ public sealed class PgMigrationExecutor
                 }
             }
 
+            // Remove the state store record so the migration can be retried cleanly.
+            // If this delete fails we log but still re-throw the original error —
+            // the user can use `pgroll rollback` to clean up the remaining record.
+            try { await _stateStore.DeleteRecordAsync(_schemaName, migration.Name, ct); }
+            catch (Exception deleteEx)
+            {
+                _logger.LogError(deleteEx,
+                    "Failed to delete state record for '{Name}' after rollback. Run `pgroll rollback` to clean up.",
+                    migration.Name);
+            }
+
             throw;
         }
 
-        var migrationJson = migration.Serialize();
-        var lastCompleted = (await _stateStore.GetHistoryAsync(_schemaName, ct))
-            .LastOrDefault(r => r.Done)?.Name;
-
-        var record = new MigrationRecord(
-            Schema: _schemaName,
-            Name: migration.Name,
-            MigrationJson: migrationJson,
-            CreatedAt: DateTimeOffset.UtcNow,
-            UpdatedAt: DateTimeOffset.UtcNow,
-            Parent: lastCompleted,
-            Done: false
-        );
-
-        await _stateStore.RecordStartedAsync(record, ct);
         _logger.LogInformation("Migration '{Name}' started successfully.", migration.Name);
         return new StartResult(migration.Name, RequiresComplete: true);
 
@@ -618,39 +631,54 @@ public sealed class PgMigrationExecutor
         if (op.Default is not null) addColSql.Append($" DEFAULT {op.Default}");
         await ExecAsync(conn, addColSql.ToString(), ct);
 
-        // Create UP (and optional DOWN) trigger.
-        // tempColumnAlias exposes the dup column under its final public name so that Down
-        // expressions such as "SUBSTR(full_name, 5)" work naturally.
-        var finalName = op.Name ?? op.Column;
-        var tempAlias = finalName != op.Column ? finalName : null;
-        await PgTriggerManager.CreateTriggerAsync(conn, _schemaName, op.Table, op.Column,
-            dupCol, upExpr, versionSchema, ct,
-            downExpression: op.Down, tempColumnAlias: tempAlias);
-
-        // Backfill (uses its own connections)
-        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, progress: BackfillProgress, ct: ct);
-
-        // Add unique index if requested
-        if (op.Unique == true)
+        // All subsequent steps are non-transactional (requires_concurrent_connection).
+        // If any step fails we must clean up what we've already done ourselves.
+        try
         {
-            var uniqIdx = $"_pgroll_uniq_{op.Column}";
-            await ExecAsync(conn,
-                $"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS {QuoteIdent(uniqIdx)} ON {Quote(_schemaName, op.Table)} ({QuoteIdent(dupCol)})", ct);
-        }
+            // Create UP (and optional DOWN) trigger.
+            // tempColumnAlias exposes the dup column under its final public name so that Down
+            // expressions such as "SUBSTR(full_name, 5)" work naturally.
+            var finalName = op.Name ?? op.Column;
+            var tempAlias = finalName != op.Column ? finalName : null;
+            await PgTriggerManager.CreateTriggerAsync(conn, _schemaName, op.Table, op.Column,
+                dupCol, upExpr, versionSchema, ct,
+                downExpression: op.Down, tempColumnAlias: tempAlias);
 
-        // Add check constraint (NOT VALID — validate later)
-        if (op.Check is not null)
+            // Backfill (uses its own connections)
+            await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, progress: BackfillProgress, ct: ct);
+
+            // Add unique index if requested
+            if (op.Unique == true)
+            {
+                var uniqIdx = $"_pgroll_uniq_{op.Column}";
+                await ExecAsync(conn,
+                    $"CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS {QuoteIdent(uniqIdx)} ON {Quote(_schemaName, op.Table)} ({QuoteIdent(dupCol)})", ct);
+            }
+
+            // Add check constraint (NOT VALID — validate later)
+            if (op.Check is not null)
+            {
+                var checkName = $"_pgroll_check_{op.Column}";
+                await ExecAsync(conn,
+                    $"ALTER TABLE {Quote(_schemaName, op.Table)} ADD CONSTRAINT {QuoteIdent(checkName)} CHECK ({op.Check}) NOT VALID", ct);
+            }
+
+            // Create version schema view: originals (excluding the altered column) + dup AS finalName
+            var origCols = OriginalColumnExpressions(snapshot, op.Table)
+                .Where(e => !e.Equals(QuoteIdent(op.Column), StringComparison.Ordinal));
+            var colExprs = origCols.Append($"{QuoteIdent(dupCol)} AS {QuoteIdent(op.Name ?? op.Column)}").ToList();
+            await PgVersionSchemaManager.CreateVersionSchemaAsync(conn, _schemaName, migration.Name, op.Table, colExprs, ct);
+        }
+        catch
         {
-            var checkName = $"_pgroll_check_{op.Column}";
+            // Self-cleanup: undo everything StartAlterColumn has done so far so that retrying
+            // start (or running pgroll-net rollback) works without manual intervention.
+            await PgTriggerManager.DropTriggerAsync(conn, _schemaName, op.Table, op.Column, ct);
+            await PgVersionSchemaManager.DropVersionSchemaAsync(conn, _schemaName, migration.Name, ct);
             await ExecAsync(conn,
-                $"ALTER TABLE {Quote(_schemaName, op.Table)} ADD CONSTRAINT {QuoteIdent(checkName)} CHECK ({op.Check}) NOT VALID", ct);
+                $"ALTER TABLE {Quote(_schemaName, op.Table)} DROP COLUMN IF EXISTS {QuoteIdent(dupCol)}", ct);
+            throw;
         }
-
-        // Create version schema view: originals (excluding the altered column) + dup AS finalName
-        var origCols = OriginalColumnExpressions(snapshot, op.Table)
-            .Where(e => !e.Equals(QuoteIdent(op.Column), StringComparison.Ordinal));
-        var colExprs = origCols.Append($"{QuoteIdent(dupCol)} AS {QuoteIdent(finalName)}").ToList();
-        await PgVersionSchemaManager.CreateVersionSchemaAsync(conn, _schemaName, migration.Name, op.Table, colExprs, ct);
     }
 
     private async Task CompleteAlterColumn(

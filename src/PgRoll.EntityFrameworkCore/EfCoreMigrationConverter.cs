@@ -395,10 +395,14 @@ public static class EfCoreMigrationConverter
     private static AlterColumnOperation ConvertAlterColumn(EfAlterColumn alc)
     {
         string? dataType = null;
+        string? up = null;
+        string? down = null;
         if (alc.ColumnType is not null && alc.OldColumn.ColumnType is not null
             && alc.ColumnType != alc.OldColumn.ColumnType)
         {
             dataType = alc.ColumnType;
+            up = $"{alc.Name}::{alc.ColumnType}";
+            down = $"{alc.Name}::{alc.OldColumn.ColumnType}";
         }
 
         bool? notNull = null;
@@ -416,7 +420,8 @@ public static class EfCoreMigrationConverter
             DataType = dataType,
             NotNull = notNull,
             Default = defaultValue,
-            Up = null
+            Up = up,
+            Down = down
         };
     }
 }

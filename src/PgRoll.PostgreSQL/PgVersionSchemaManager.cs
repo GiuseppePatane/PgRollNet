@@ -25,6 +25,13 @@ public sealed class PgVersionSchemaManager
         var colList = string.Join(", ", columnExpressions);
 
         await ExecAsync(conn, $"""CREATE SCHEMA IF NOT EXISTS "{versionSchema}" """, ct);
+
+        // Propagate USAGE grants from the base schema to the version schema so that any
+        // role that can read the base schema can also read the version schema views.
+        var usageGrantees = await ReadUsageGranteesAsync(conn, baseSchema, ct);
+        foreach (var grantee in usageGrantees)
+            await ExecAsync(conn, $"""GRANT USAGE ON SCHEMA "{versionSchema}" TO {grantee}""", ct);
+
         // DROP + CREATE instead of CREATE OR REPLACE: PostgreSQL disallows replacing a view when
         // column names change (e.g. multiple alter_column ops on the same table in one migration).
         await ExecAsync(conn, $"""DROP VIEW IF EXISTS "{versionSchema}"."{tableName}" CASCADE""", ct);
@@ -32,6 +39,38 @@ public sealed class PgVersionSchemaManager
             CREATE VIEW "{versionSchema}"."{tableName}" AS
             SELECT {colList} FROM "{baseSchema}"."{tableName}"
             """, ct);
+
+        foreach (var grantee in usageGrantees)
+            await ExecAsync(conn, $"""GRANT SELECT ON "{versionSchema}"."{tableName}" TO {grantee}""", ct);
+    }
+
+    /// <summary>
+    /// Returns the SQL-safe grantee identifiers (e.g. <c>"myrole"</c> or <c>PUBLIC</c>)
+    /// that have USAGE privilege on <paramref name="schemaName"/>.
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> ReadUsageGranteesAsync(
+        NpgsqlConnection conn, string schemaName, CancellationToken ct)
+    {
+        // aclexplode returns grantee oid = 0 for PUBLIC.
+        const string sql = """
+            SELECT DISTINCT
+                CASE WHEN (aclexplode(nspacl)).grantee = 0 THEN 'PUBLIC'
+                     ELSE '"' || pg_catalog.pg_get_userbyid((aclexplode(nspacl)).grantee) || '"'
+                END AS grantee
+            FROM pg_catalog.pg_namespace
+            WHERE nspname = $1
+              AND (aclexplode(nspacl)).privilege_type = 'USAGE'
+            """;
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue(schemaName);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var result = new List<string>();
+        while (await reader.ReadAsync(ct))
+            if (!reader.IsDBNull(0))
+                result.Add(reader.GetString(0));
+        return result;
     }
 
     /// <summary>Drops the versioned schema and all its objects (CASCADE).</summary>
