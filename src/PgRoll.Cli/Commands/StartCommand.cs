@@ -39,14 +39,14 @@ public static class StartCommand
                 lastTotal = p.TotalRowsUpdated;
                 lastTable = p.Table;
                 var line = $"  Backfilling {p.Table}: batch {p.BatchNumber}, {p.TotalRowsUpdated:N0} rows updated...";
-                Console.Write($"\r{line.PadRight(Console.WindowWidth - 1)}");
+                Console.Write($"\r{Pad(line)}");
             });
 
             await executor.StartAsync(migration);
 
             if (lastTable is not null)
             {
-                Console.WriteLine($"\r  ✓ Backfill complete: {lastTotal:N0} rows updated on {lastTable}.".PadRight(Console.WindowWidth - 1));
+                Console.WriteLine($"\r{Pad($"  ✓ Backfill complete: {lastTotal:N0} rows updated on {lastTable}.")}");
                 Console.WriteLine();
             }
 
@@ -109,5 +109,11 @@ public static class StartCommand
             foreach (var e in errors) Console.WriteLine(e);
             Environment.Exit(1);
         }
+    }
+
+    private static string Pad(string line)
+    {
+        try { return line.PadRight(Console.WindowWidth - 1); }
+        catch (IOException) { return line; }
     }
 }

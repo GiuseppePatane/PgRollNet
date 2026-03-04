@@ -52,14 +52,16 @@ public sealed class PgVersionSchemaManager
         NpgsqlConnection conn, string schemaName, CancellationToken ct)
     {
         // aclexplode returns grantee oid = 0 for PUBLIC.
+        // Use has_schema_privilege to check each role directly — avoids aclexplode()
+        // which is a set-returning function that causes problems inside CASE expressions.
+        // The UNION ALL checks the PUBLIC pseudo-role separately (oid 0 in pg ACL internals).
         const string sql = """
-            SELECT DISTINCT
-                CASE WHEN (aclexplode(nspacl)).grantee = 0 THEN 'PUBLIC'
-                     ELSE '"' || pg_catalog.pg_get_userbyid((aclexplode(nspacl)).grantee) || '"'
-                END AS grantee
-            FROM pg_catalog.pg_namespace
-            WHERE nspname = $1
-              AND (aclexplode(nspacl)).privilege_type = 'USAGE'
+            SELECT '"' || replace(rolname, '"', '""') || '"' AS grantee
+            FROM pg_catalog.pg_roles
+            WHERE has_schema_privilege(oid, $1, 'USAGE')
+            UNION ALL
+            SELECT 'PUBLIC'
+            WHERE has_schema_privilege('public', $1, 'USAGE')
             """;
 
         await using var cmd = new NpgsqlCommand(sql, conn);

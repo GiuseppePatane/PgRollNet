@@ -401,8 +401,8 @@ public static class EfCoreMigrationConverter
             && alc.ColumnType != alc.OldColumn.ColumnType)
         {
             dataType = alc.ColumnType;
-            up = $"{alc.Name}::{alc.ColumnType}";
-            down = $"{alc.Name}::{alc.OldColumn.ColumnType}";
+            up = $"CAST({alc.Name} AS {alc.ColumnType})";
+            down = $"CAST({alc.Name} AS {alc.OldColumn.ColumnType})";
         }
 
         bool? notNull = null;

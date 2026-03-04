@@ -65,9 +65,9 @@ public sealed class PgMigrationExecutor
     {
         var conn = await _dataSource.OpenConnectionAsync(ct);
         if (_lockTimeoutMs > 0)
-            await new NpgsqlCommand($"SET lock_timeout = '{_lockTimeoutMs}ms'", conn).ExecuteNonQueryAsync(ct);
+            await ExecAsync(conn, $"SET lock_timeout = '{_lockTimeoutMs}ms'", ct);
         if (_role is not null)
-            await new NpgsqlCommand($"SET ROLE {_role}", conn).ExecuteNonQueryAsync(ct);
+            await ExecAsync(conn, $"SET ROLE {QuoteIdent(_role)}", ct);
         return conn;
     }
 

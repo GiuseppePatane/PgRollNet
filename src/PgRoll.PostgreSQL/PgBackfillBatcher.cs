@@ -31,19 +31,21 @@ public sealed class PgBackfillBatcher
     {
         // Use a subquery (not FROM) so that column references in upExpression
         // unambiguously resolve to the target table's columns.
-        // The inner WHERE excludes rows where upExpression would evaluate to NULL:
-        // those rows would be re-selected on every batch (since the dup column stays NULL),
-        // causing an infinite loop when the source column contains NULLs.
+        // Uses a FROM subquery to avoid evaluating upExpression twice (once in SET, once in WHERE).
+        // Double evaluation is unsafe for volatile functions (e.g. NOW(), gen_random_uuid()).
+        // The WHERE excludes rows where upExpression is NULL to prevent an infinite loop when
+        // the source column is NULL (NULL::type = NULL → row would be re-selected every batch).
         var sql = $"""
-            UPDATE "{schema}"."{table}"
+            UPDATE "{schema}"."{table}" AS _t
             SET "{tempColumn}" = ({upExpression})
-            WHERE ctid IN (
+            FROM (
                 SELECT ctid FROM "{schema}"."{table}"
                 WHERE "{tempColumn}" IS NULL
                 AND ({upExpression}) IS NOT NULL
                 LIMIT {batchSize}
                 FOR UPDATE SKIP LOCKED
-            )
+            ) AS _batch
+            WHERE _t.ctid = _batch.ctid
             """;
 
         long total = 0;
