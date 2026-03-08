@@ -172,7 +172,8 @@ public sealed class PgMigrationExecutor
                 // Remove the state store record so the migration can be retried cleanly.
                 // If this delete fails we log but still re-throw the original error —
                 // the user can use `pgroll rollback` to clean up the remaining record.
-                try { await _stateStore.DeleteRecordAsync(_schemaName, migration.Name, ct); }
+                try
+                { await _stateStore.DeleteRecordAsync(_schemaName, migration.Name, ct); }
                 catch (Exception deleteEx)
                 {
                     _logger.LogError(deleteEx,
@@ -454,11 +455,16 @@ public sealed class PgMigrationExecutor
         var defs = op.Columns.Select(col =>
         {
             var def = $"{QuoteIdent(col.Name)} {col.Type}";
-            if (!col.Nullable) def += " NOT NULL";
-            if (col.Default is not null) def += $" DEFAULT {col.Default}";
-            if (col.PrimaryKey) def += " PRIMARY KEY";
-            if (col.Unique) def += " UNIQUE";
-            if (col.References is not null) def += $" REFERENCES {col.References}";
+            if (!col.Nullable)
+                def += " NOT NULL";
+            if (col.Default is not null)
+                def += $" DEFAULT {col.Default}";
+            if (col.PrimaryKey)
+                def += " PRIMARY KEY";
+            if (col.Unique)
+                def += " UNIQUE";
+            if (col.References is not null)
+                def += $" REFERENCES {col.References}";
             return def;
         });
 
@@ -510,8 +516,10 @@ public sealed class PgMigrationExecutor
             // Simple path: add column directly
             var col = op.Column;
             var colDef = new StringBuilder($"ADD COLUMN {QuoteIdent(col.Name)} {col.Type}");
-            if (!col.Nullable) colDef.Append(" NOT NULL");
-            if (col.Default is not null) colDef.Append($" DEFAULT {col.Default}");
+            if (!col.Nullable)
+                colDef.Append(" NOT NULL");
+            if (col.Default is not null)
+                colDef.Append($" DEFAULT {col.Default}");
 
             await ExecAsync(conn, $"ALTER TABLE {Quote(_schemaName, op.Table)} {colDef}", ct);
             return;
@@ -628,7 +636,8 @@ public sealed class PgMigrationExecutor
 
         // Add temp duplicate column (always nullable initially)
         var addColSql = new StringBuilder($"ALTER TABLE {Quote(_schemaName, op.Table)} ADD COLUMN {QuoteIdent(dupCol)} {targetType}");
-        if (op.Default is not null) addColSql.Append($" DEFAULT {op.Default}");
+        if (op.Default is not null)
+            addColSql.Append($" DEFAULT {op.Default}");
         await ExecAsync(conn, addColSql.ToString(), ct);
 
         // All subsequent steps are non-transactional (requires_concurrent_connection).
@@ -994,7 +1003,8 @@ public sealed class PgMigrationExecutor
     private static IEnumerable<string> OriginalColumnExpressions(SchemaSnapshot snapshot, string tableName)
     {
         var table = snapshot.GetTable(tableName);
-        if (table is null) return Enumerable.Empty<string>();
+        if (table is null)
+            return Enumerable.Empty<string>();
 
         return table.Columns
             .Where(c => !c.Name.StartsWith("_pgroll_", StringComparison.OrdinalIgnoreCase))

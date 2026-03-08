@@ -205,7 +205,8 @@ public class DownExpressionTests(PostgresFixture postgres) : IAsyncLifetime
             conn);
         await using var reader = await cmd.ExecuteReaderAsync();
         var columns = new List<string>();
-        while (await reader.ReadAsync()) columns.Add(reader.GetString(0));
+        while (await reader.ReadAsync())
+            columns.Add(reader.GetString(0));
 
         columns.Should().Contain("label");
         columns.Should().NotContain("_pgroll_dup_label");
@@ -245,7 +246,8 @@ public class DownExpressionTests(PostgresFixture postgres) : IAsyncLifetime
             conn);
         await using var reader = await cmd.ExecuteReaderAsync();
         var columns = new List<string>();
-        while (await reader.ReadAsync()) columns.Add(reader.GetString(0));
+        while (await reader.ReadAsync())
+            columns.Add(reader.GetString(0));
 
         columns.Should().Contain("reference");
         columns.Should().NotContain("ref");

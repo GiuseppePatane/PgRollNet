@@ -106,14 +106,16 @@ public static class StartCommand
         else
         {
             Console.WriteLine($"Validation failed ({errors.Count} error(s)):");
-            foreach (var e in errors) Console.WriteLine(e);
+            foreach (var e in errors)
+                Console.WriteLine(e);
             Environment.Exit(1);
         }
     }
 
     private static string Pad(string line)
     {
-        try { return line.PadRight(Console.WindowWidth - 1); }
+        try
+        { return line.PadRight(Console.WindowWidth - 1); }
         catch (IOException) { return line; }
     }
 }

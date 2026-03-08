@@ -78,9 +78,12 @@ public sealed class Migration
     /// </summary>
     private static JsonNode? InferJsonValue(string s)
     {
-        if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(true);
-        if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(false);
-        if (string.Equals(s, "null", StringComparison.OrdinalIgnoreCase)) return null;
+        if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase))
+            return JsonValue.Create(true);
+        if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase))
+            return JsonValue.Create(false);
+        if (string.Equals(s, "null", StringComparison.OrdinalIgnoreCase))
+            return null;
         if (long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l))
             return JsonValue.Create(l);
         if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d))

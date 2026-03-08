@@ -63,7 +63,8 @@ public sealed class PgBackfillBatcher
             if (updated > 0)
                 progress?.Report(new BackfillProgress(schema, table, batchNumber, updated, total));
 
-            if (updated == 0) break;
+            if (updated == 0)
+                break;
 
             if (batchDelay > TimeSpan.Zero)
                 await Task.Delay(batchDelay, ct);

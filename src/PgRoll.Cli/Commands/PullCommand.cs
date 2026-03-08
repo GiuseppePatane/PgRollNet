@@ -28,7 +28,8 @@ public static class PullCommand
             var written = 0;
             foreach (var record in completed)
             {
-                if (record.MigrationJson is null) continue;
+                if (record.MigrationJson is null)
+                    continue;
                 var fileName = Path.Combine(dir.FullName, $"{record.Name}.json");
                 await File.WriteAllTextAsync(fileName, record.MigrationJson);
                 written++;

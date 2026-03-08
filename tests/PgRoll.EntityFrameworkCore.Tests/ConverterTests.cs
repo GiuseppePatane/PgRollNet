@@ -2,40 +2,39 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore.Migrations;
 using PgRoll.Core.Operations;
 using PgRoll.EntityFrameworkCore;
-using PgRollMigration = PgRoll.Core.Models.Migration;
-
 // EF Core input type aliases (avoid name collision with PgRoll operations)
 using EfAddCheckConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.AddCheckConstraintOperation;
 using EfAddColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation;
 using EfAddForeignKey = Microsoft.EntityFrameworkCore.Migrations.Operations.AddForeignKeyOperation;
 using EfAddPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.AddPrimaryKeyOperation;
-using EfDropPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.DropPrimaryKeyOperation;
 using EfAddUniqueConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.AddUniqueConstraintOperation;
 using EfAlterColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterColumnOperation;
+using EfAlterDatabase = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterDatabaseOperation;
+using EfAlterSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterSequenceOperation;
 // ColumnOperation is abstract; use AddColumnOperation for OldColumn in tests
 using EfCreateIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation;
+using EfCreateSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateSequenceOperation;
 using EfCreateTable = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateTableOperation;
+using EfDeleteData = Microsoft.EntityFrameworkCore.Migrations.Operations.DeleteDataOperation;
 using EfDropCheckConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.DropCheckConstraintOperation;
 using EfDropColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.DropColumnOperation;
 using EfDropForeignKey = Microsoft.EntityFrameworkCore.Migrations.Operations.DropForeignKeyOperation;
 using EfDropIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.DropIndexOperation;
+using EfDropPrimaryKey = Microsoft.EntityFrameworkCore.Migrations.Operations.DropPrimaryKeyOperation;
+using EfDropSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSchemaOperation;
+using EfDropSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSequenceOperation;
 using EfDropTable = Microsoft.EntityFrameworkCore.Migrations.Operations.DropTableOperation;
 using EfDropUniqueConstraint = Microsoft.EntityFrameworkCore.Migrations.Operations.DropUniqueConstraintOperation;
-using EfDeleteData = Microsoft.EntityFrameworkCore.Migrations.Operations.DeleteDataOperation;
 using EfEnsureSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.EnsureSchemaOperation;
-using EfDropSchema = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSchemaOperation;
-using EfCreateSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateSequenceOperation;
-using EfAlterSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterSequenceOperation;
-using EfDropSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.DropSequenceOperation;
-using EfRestartSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RestartSequenceOperation;
-using EfRenameSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameSequenceOperation;
-using EfAlterDatabase = Microsoft.EntityFrameworkCore.Migrations.Operations.AlterDatabaseOperation;
 using EfInsertData = Microsoft.EntityFrameworkCore.Migrations.Operations.InsertDataOperation;
-using EfUpdateData = Microsoft.EntityFrameworkCore.Migrations.Operations.UpdateDataOperation;
 using EfRenameColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameColumnOperation;
 using EfRenameIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameIndexOperation;
+using EfRenameSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameSequenceOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
+using EfRestartSequence = Microsoft.EntityFrameworkCore.Migrations.Operations.RestartSequenceOperation;
 using EfSql = Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation;
+using EfUpdateData = Microsoft.EntityFrameworkCore.Migrations.Operations.UpdateDataOperation;
+using PgRollMigration = PgRoll.Core.Models.Migration;
 
 namespace PgRoll.EntityFrameworkCore.Tests;
 

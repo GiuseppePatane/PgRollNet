@@ -29,7 +29,8 @@ public sealed class DropNotNullOperation : IMigrationOperation
     public ValidationResult Validate(SchemaSnapshot schema)
     {
         var r = ValidateStructure();
-        if (!r.IsValid) return r;
+        if (!r.IsValid)
+            return r;
         if (!schema.TableExists(Table))
             return ValidationResult.Failure($"Table '{Table}' does not exist.");
         if (!schema.ColumnExists(Table, Column))

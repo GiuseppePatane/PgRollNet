@@ -3,11 +3,11 @@ using Npgsql;
 using PgRoll.EntityFrameworkCore;
 using PgRoll.PostgreSQL.Tests.Infrastructure;
 using EfAddColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation;
+using EfCreateIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation;
 using EfCreateTable = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateTableOperation;
+using EfDropColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.DropColumnOperation;
 using EfDropTable = Microsoft.EntityFrameworkCore.Migrations.Operations.DropTableOperation;
 using EfRenameTable = Microsoft.EntityFrameworkCore.Migrations.Operations.RenameTableOperation;
-using EfCreateIndex = Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation;
-using EfDropColumn = Microsoft.EntityFrameworkCore.Migrations.Operations.DropColumnOperation;
 
 namespace PgRoll.PostgreSQL.Tests;
 

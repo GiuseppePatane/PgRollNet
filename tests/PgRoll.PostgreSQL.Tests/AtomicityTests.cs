@@ -131,7 +131,8 @@ public class AtomicityTests(PostgresFixture postgres) : IAsyncLifetime
             }
             """);
 
-        try { await _executor.StartAsync(migration); }
+        try
+        { await _executor.StartAsync(migration); }
         catch { /* expected */ }
 
         var history = await _executor.GetHistoryAsync();
@@ -156,7 +157,9 @@ public class AtomicityTests(PostgresFixture postgres) : IAsyncLifetime
             }
             """);
 
-        try { await _executor.StartAsync(failing); } catch { /* expected */ }
+        try
+        { await _executor.StartAsync(failing); }
+        catch { /* expected */ }
 
         // No active migration should be stuck after the compensating rollback
         var status = await _executor.GetStatusAsync();

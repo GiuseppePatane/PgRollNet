@@ -25,12 +25,14 @@ public static class DataSeedingSqlGenerator
 
         for (int r = 0; r < rows; r++)
         {
-            if (r > 0) sb.Append(',');
+            if (r > 0)
+                sb.Append(',');
             sb.AppendLine();
             sb.Append("  (");
             for (int c = 0; c < colCount; c++)
             {
-                if (c > 0) sb.Append(", ");
+                if (c > 0)
+                    sb.Append(", ");
                 sb.Append(FormatValue(values[r, c]));
             }
             sb.Append(')');
@@ -54,7 +56,8 @@ public static class DataSeedingSqlGenerator
 
         for (int r = 0; r < rows; r++)
         {
-            if (r > 0) sb.AppendLine();
+            if (r > 0)
+                sb.AppendLine();
             sb.Append($"UPDATE {tableSql} SET ");
             sb.Append(string.Join(", ", Enumerable.Range(0, columns.Count)
                 .Select(c => $"{QuoteIdent(columns[c])} = {FormatValue(values[r, c])}")));
@@ -79,7 +82,8 @@ public static class DataSeedingSqlGenerator
 
         for (int r = 0; r < rows; r++)
         {
-            if (r > 0) sb.AppendLine();
+            if (r > 0)
+                sb.AppendLine();
             sb.Append($"DELETE FROM {tableSql} WHERE ");
             sb.Append(string.Join(" AND ", Enumerable.Range(0, keyColumns.Count)
                 .Select(c => $"{QuoteIdent(keyColumns[c])} = {FormatValue(keyValues[r, c])}")));

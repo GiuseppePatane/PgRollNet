@@ -76,10 +76,12 @@ public static class NewCommand
             {
                 Console.WriteLine();
                 var prompt = operations.Count == 0 ? "Add an operation?" : "Add another operation?";
-                if (!AskYesNo(prompt, defaultYes: true)) break;
+                if (!AskYesNo(prompt, defaultYes: true))
+                    break;
 
                 var op = PromptOperation();
-                if (op is not null) operations.Add(op);
+                if (op is not null)
+                    operations.Add(op);
             }
 
             // ── Write file ───────────────────────────────────────────────────
@@ -128,8 +130,10 @@ public static class NewCommand
         {
             Console.Write($"  {prompt}{(required ? "" : " (optional)")}: ");
             var value = Console.ReadLine()?.Trim();
-            if (!string.IsNullOrWhiteSpace(value)) return value;
-            if (!required) return null;
+            if (!string.IsNullOrWhiteSpace(value))
+                return value;
+            if (!required)
+                return null;
             Console.WriteLine($"  ↑ required.");
         }
     }
@@ -167,7 +171,8 @@ public static class NewCommand
         {
             Console.Write($"  Select (1-{OperationTypes.Length}): ");
             var raw = Console.ReadLine()?.Trim();
-            if (int.TryParse(raw, out choice) && choice >= 1 && choice <= OperationTypes.Length) break;
+            if (int.TryParse(raw, out choice) && choice >= 1 && choice <= OperationTypes.Length)
+                break;
             Console.WriteLine("  Invalid choice — enter a number from the list.");
         }
 
@@ -212,7 +217,8 @@ public static class NewCommand
         foreach (var (field, required) in fields)
         {
             var v = Ask(field, required);
-            if (v is not null) op[field] = v;
+            if (v is not null)
+                op[field] = v;
         }
         return op;
     }
@@ -238,19 +244,24 @@ public static class NewCommand
             col["type"] = Ask("  type (e.g. text, integer, uuid, bigserial, timestamp with time zone)", required: true);
 
             var nullable = Ask("  nullable? [true/false, default true]");
-            if (nullable is "false" or "f" or "no" or "n") col["nullable"] = false;
+            if (nullable is "false" or "f" or "no" or "n")
+                col["nullable"] = false;
 
             var pk = Ask("  primary_key? [true/false, default false]");
-            if (pk is "true" or "t" or "yes" or "y") col["primary_key"] = true;
+            if (pk is "true" or "t" or "yes" or "y")
+                col["primary_key"] = true;
 
             var unique = Ask("  unique? [true/false, default false]");
-            if (unique is "true" or "t" or "yes" or "y") col["unique"] = true;
+            if (unique is "true" or "t" or "yes" or "y")
+                col["unique"] = true;
 
             var def = Ask("  default expression (e.g. now(), 0, gen_random_uuid())");
-            if (def is not null) col["default"] = def;
+            if (def is not null)
+                col["default"] = def;
 
             var refs = Ask("  references (e.g. users(id))");
-            if (refs is not null) col["references"] = refs;
+            if (refs is not null)
+                col["references"] = refs;
 
             columns.Add(col);
             Console.WriteLine();
@@ -272,26 +283,32 @@ public static class NewCommand
         col["type"] = Ask("type (e.g. text, integer, boolean, uuid)", required: true);
 
         var nullable = Ask("nullable? [true/false, default true]");
-        if (nullable is "false" or "f" or "no" or "n") col["nullable"] = false;
+        if (nullable is "false" or "f" or "no" or "n")
+            col["nullable"] = false;
 
         var pk = Ask("primary_key? [true/false, default false]");
-        if (pk is "true" or "t" or "yes" or "y") col["primary_key"] = true;
+        if (pk is "true" or "t" or "yes" or "y")
+            col["primary_key"] = true;
 
         var unique = Ask("unique? [true/false, default false]");
-        if (unique is "true" or "t" or "yes" or "y") col["unique"] = true;
+        if (unique is "true" or "t" or "yes" or "y")
+            col["unique"] = true;
 
         var def = Ask("default expression");
-        if (def is not null) col["default"] = def;
+        if (def is not null)
+            col["default"] = def;
 
         op["column"] = col;
 
         Console.WriteLine();
         Console.WriteLine("  Backfill expressions (needed for zero-downtime when the column has NOT NULL or a computed value):");
         var up = Ask("up expression (value for existing rows, e.g. 'unknown', now())");
-        if (up is not null) op["up"] = up;
+        if (up is not null)
+            op["up"] = up;
 
         var down = Ask("down expression (value when rolling back)");
-        if (down is not null) op["down"] = down;
+        if (down is not null)
+            op["down"] = down;
 
         return op;
     }
@@ -306,29 +323,37 @@ public static class NewCommand
         Console.WriteLine("  Change what? (all optional — press Enter to skip)");
 
         var name = Ask("new name (rename column)");
-        if (name is not null) op["name"] = name;
+        if (name is not null)
+            op["name"] = name;
 
         var dataType = Ask("new data type (e.g. bigint, text)");
-        if (dataType is not null) op["data_type"] = dataType;
+        if (dataType is not null)
+            op["data_type"] = dataType;
 
         var notNull = Ask("not_null [true/false]");
-        if (notNull is "true" or "t") op["not_null"] = true;
-        if (notNull is "false" or "f") op["not_null"] = false;
+        if (notNull is "true" or "t")
+            op["not_null"] = true;
+        if (notNull is "false" or "f")
+            op["not_null"] = false;
 
         var def = Ask("new default expression");
-        if (def is not null) op["default"] = def;
+        if (def is not null)
+            op["default"] = def;
 
         var check = Ask("check expression (e.g. value > 0)");
-        if (check is not null) op["check"] = check;
+        if (check is not null)
+            op["check"] = check;
 
         Console.WriteLine();
         Console.WriteLine("  Backfill expressions (needed for zero-downtime type/nullability changes):");
 
         var up = Ask("up expression (new column value from old, e.g. \"col\"::bigint)");
-        if (up is not null) op["up"] = up;
+        if (up is not null)
+            op["up"] = up;
 
         var down = Ask("down expression (old column value from new, for rollback writes)");
-        if (down is not null) op["down"] = down;
+        if (down is not null)
+            op["down"] = down;
 
         return op;
     }
@@ -341,7 +366,8 @@ public static class NewCommand
         op["columns"] = AskCommaSeparated("columns (comma-separated)");
 
         var unique = Ask("unique? [true/false, default false]");
-        if (unique is "true" or "t" or "yes" or "y") op["unique"] = true;
+        if (unique is "true" or "t" or "yes" or "y")
+            op["unique"] = true;
 
         return op;
     }

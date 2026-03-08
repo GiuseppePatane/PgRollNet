@@ -146,7 +146,8 @@ public sealed class MigrationAssemblyLoader : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
         _context.Unload();
     }
@@ -277,9 +278,10 @@ public sealed class MigrationAssemblyLoader : IDisposable
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // If parsing fails for any reason, silently fall back to directory-only resolution.
+                // If parsing fails for any reason, fall back to directory-only resolution.
+                System.Diagnostics.Debug.WriteLine($"Failed to parse deps.json: {ex.Message}");
             }
 
             return index;

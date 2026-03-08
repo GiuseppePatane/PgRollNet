@@ -66,7 +66,12 @@ public static class MigrateCommand
                     failed.Add(migration.Name);
                     // StartAsync atomicity cleans up on partial failure;
                     // if CompleteAsync failed the active migration is still in state — rollback it.
-                    try { await executor.RollbackAsync(); } catch { /* already rolled back or no active */ }
+                    try
+                    { await executor.RollbackAsync(); }
+                    catch (Exception rollbackEx)
+                    {
+                        Console.Error.WriteLine($"  WARNING: Rollback also failed: {rollbackEx.Message}");
+                    }
                 }
             }
 

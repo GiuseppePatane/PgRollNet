@@ -78,7 +78,8 @@ public static class SequenceSqlGenerator
 
         if (newSchema is not null && newSchema != schema)
         {
-            if (sb.Length > 0) sb.AppendLine();
+            if (sb.Length > 0)
+                sb.AppendLine();
             // After rename the sequence lives under old schema with new name
             var renamedIdent = QualifySequence(schema, effectiveName);
             sb.Append($"ALTER SEQUENCE {renamedIdent} SET SCHEMA {QuoteIdent(newSchema)};");
@@ -143,12 +144,17 @@ public static class SequenceSqlGenerator
 
     private static string? MapSequenceType(Type? clrType)
     {
-        if (clrType is null) return null;
+        if (clrType is null)
+            return null;
         var t = Nullable.GetUnderlyingType(clrType) ?? clrType;
-        if (t == typeof(short)) return "smallint";
-        if (t == typeof(int)) return "integer";
-        if (t == typeof(long)) return "bigint";
-        if (t == typeof(decimal)) return "bigint"; // EF Core uses decimal for bigint sequences
+        if (t == typeof(short))
+            return "smallint";
+        if (t == typeof(int))
+            return "integer";
+        if (t == typeof(long))
+            return "bigint";
+        if (t == typeof(decimal))
+            return "bigint"; // EF Core uses decimal for bigint sequences
         return null;
     }
 }

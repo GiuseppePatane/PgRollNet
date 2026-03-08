@@ -434,20 +434,34 @@ public static class ReflectionConverter
 
         var t = Nullable.GetUnderlyingType(clrType) ?? clrType;
 
-        if (t == typeof(string)) return "text";
-        if (t == typeof(int)) return "integer";
-        if (t == typeof(long)) return "bigint";
-        if (t == typeof(short)) return "smallint";
-        if (t == typeof(bool)) return "boolean";
-        if (t == typeof(Guid)) return "uuid";
-        if (t == typeof(decimal)) return "numeric";
-        if (t == typeof(double)) return "double precision";
-        if (t == typeof(float)) return "real";
-        if (t == typeof(byte[])) return "bytea";
-        if (t == typeof(DateTime)) return "timestamp with time zone";
-        if (t == typeof(DateTimeOffset)) return "timestamp with time zone";
-        if (t == typeof(DateOnly)) return "date";
-        if (t == typeof(TimeOnly)) return "time";
+        if (t == typeof(string))
+            return "text";
+        if (t == typeof(int))
+            return "integer";
+        if (t == typeof(long))
+            return "bigint";
+        if (t == typeof(short))
+            return "smallint";
+        if (t == typeof(bool))
+            return "boolean";
+        if (t == typeof(Guid))
+            return "uuid";
+        if (t == typeof(decimal))
+            return "numeric";
+        if (t == typeof(double))
+            return "double precision";
+        if (t == typeof(float))
+            return "real";
+        if (t == typeof(byte[]))
+            return "bytea";
+        if (t == typeof(DateTime))
+            return "timestamp with time zone";
+        if (t == typeof(DateTimeOffset))
+            return "timestamp with time zone";
+        if (t == typeof(DateOnly))
+            return "date";
+        if (t == typeof(TimeOnly))
+            return "time";
 
         return "text";
     }

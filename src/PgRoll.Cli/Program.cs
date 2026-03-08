@@ -1,10 +1,10 @@
 using System.CommandLine;
 using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
+using Npgsql;
 using PgRoll.Cli;
 using PgRoll.Cli.Commands;
 using PgRoll.Core.Errors;
-using Npgsql;
 
 var g = new GlobalOptions();
 var rootCmd = new RootCommand("pgroll-net — zero-downtime PostgreSQL schema migrations for .NET");
