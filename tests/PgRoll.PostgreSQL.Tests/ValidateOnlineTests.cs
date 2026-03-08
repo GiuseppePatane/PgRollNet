@@ -26,7 +26,7 @@ public class ValidateOnlineTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _ds = await DatabaseFactory.CreateIsolatedDatabaseAsync(postgres.ConnectionString, _dbName);
-        _reader   = new PgSchemaReader(_ds);
+        _reader = new PgSchemaReader(_ds);
         _executor = new PgMigrationExecutor(_ds);
         await _executor.InitializeAsync();
     }

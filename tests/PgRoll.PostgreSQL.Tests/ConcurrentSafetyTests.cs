@@ -152,7 +152,7 @@ public class ConcurrentSafetyTests(PostgresFixture postgres) : IAsyncLifetime
             TryStartAsync(executor2, migration2));
 
         var successes = results.Count(r => r);
-        var failures  = results.Count(r => !r);
+        var failures = results.Count(r => !r);
 
         // Exactly one should have won the lock race.
         successes.Should().Be(1, "advisory lock must allow only one concurrent start");

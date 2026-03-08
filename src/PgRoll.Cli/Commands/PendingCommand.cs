@@ -36,8 +36,8 @@ public static class PendingCommand
             }
 
             var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
-            var history  = await executor.GetHistoryAsync();
-            var applied  = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
+            var history = await executor.GetHistoryAsync();
+            var applied = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
             var pending = files
                 .Where(f => !applied.Contains(Path.GetFileNameWithoutExtension(f.Name)))

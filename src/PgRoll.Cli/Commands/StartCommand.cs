@@ -9,7 +9,7 @@ public static class StartCommand
     public static Command Build(GlobalOptions g)
     {
         var dryRunOpt = new Option<bool>("--dry-run", "Validate and describe the migration without executing it");
-        var fileArg   = new Argument<FileInfo>("file", "Path to the migration JSON file");
+        var fileArg = new Argument<FileInfo>("file", "Path to the migration JSON file");
 
         var cmd = new Command("start", "Start a migration from a JSON file.");
         cmd.AddOption(dryRunOpt);
@@ -84,13 +84,13 @@ public static class StartCommand
         }
 
         // Online validation against the live schema
-        var reader   = new PgSchemaReader(connection);
+        var reader = new PgSchemaReader(connection);
         var snapshot = await reader.ReadSchemaAsync(schema);
 
         var errors = new List<string>();
         for (var i = 0; i < migration.Operations.Count; i++)
         {
-            var op     = migration.Operations[i];
+            var op = migration.Operations[i];
             var result = op.Validate(snapshot);
             var status = result.IsValid ? "[OK  ]" : "[FAIL]";
             Console.WriteLine($"  {status} [{i + 1}/{migration.Operations.Count}] {op.Describe()}");

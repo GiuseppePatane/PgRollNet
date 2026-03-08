@@ -164,7 +164,7 @@ public class DownExpressionTests(PostgresFixture postgres) : IAsyncLifetime
             SET search_path TO DEFAULT;
             """);
 
-        var row1Dup  = await ScalarAsync<string>("SELECT _pgroll_dup_code FROM members WHERE id = 1");
+        var row1Dup = await ScalarAsync<string>("SELECT _pgroll_dup_code FROM members WHERE id = 1");
         var row2Code = await ScalarAsync<string>("SELECT code FROM members WHERE id = 2");
 
         row1Dup.Should().Be("X");

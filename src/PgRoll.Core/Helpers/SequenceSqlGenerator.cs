@@ -145,9 +145,9 @@ public static class SequenceSqlGenerator
     {
         if (clrType is null) return null;
         var t = Nullable.GetUnderlyingType(clrType) ?? clrType;
-        if (t == typeof(short))   return "smallint";
-        if (t == typeof(int))     return "integer";
-        if (t == typeof(long))    return "bigint";
+        if (t == typeof(short)) return "smallint";
+        if (t == typeof(int)) return "integer";
+        if (t == typeof(long)) return "bigint";
         if (t == typeof(decimal)) return "bigint"; // EF Core uses decimal for bigint sequences
         return null;
     }

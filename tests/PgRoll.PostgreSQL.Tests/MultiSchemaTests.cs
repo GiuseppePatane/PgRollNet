@@ -24,7 +24,7 @@ public class MultiSchemaTests(PostgresFixture postgres) : IAsyncLifetime
 
         // Create a custom schema
         await using var conn = await _ds.OpenConnectionAsync();
-        await using var cmd  = new NpgsqlCommand("CREATE SCHEMA app", conn);
+        await using var cmd = new NpgsqlCommand("CREATE SCHEMA app", conn);
         await cmd.ExecuteNonQueryAsync();
 
         _pub = new PgMigrationExecutor(_ds, "public");
@@ -45,7 +45,7 @@ public class MultiSchemaTests(PostgresFixture postgres) : IAsyncLifetime
     private async Task<bool> TableExistsAsync(string schema, string table)
     {
         await using var conn = await _ds.OpenConnectionAsync();
-        await using var cmd  = new NpgsqlCommand(
+        await using var cmd = new NpgsqlCommand(
             "SELECT 1 FROM information_schema.tables WHERE table_schema=$1 AND table_name=$2", conn);
         cmd.Parameters.AddWithValue(schema);
         cmd.Parameters.AddWithValue(table);
@@ -55,7 +55,7 @@ public class MultiSchemaTests(PostgresFixture postgres) : IAsyncLifetime
     private async Task<bool> ColumnExistsAsync(string schema, string table, string column)
     {
         await using var conn = await _ds.OpenConnectionAsync();
-        await using var cmd  = new NpgsqlCommand(
+        await using var cmd = new NpgsqlCommand(
             "SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 AND column_name=$3", conn);
         cmd.Parameters.AddWithValue(schema);
         cmd.Parameters.AddWithValue(table);
@@ -66,7 +66,7 @@ public class MultiSchemaTests(PostgresFixture postgres) : IAsyncLifetime
     private async Task<bool> SchemaExistsAsync(string schemaName)
     {
         await using var conn = await _ds.OpenConnectionAsync();
-        await using var cmd  = new NpgsqlCommand(
+        await using var cmd = new NpgsqlCommand(
             "SELECT 1 FROM information_schema.schemata WHERE schema_name=$1", conn);
         cmd.Parameters.AddWithValue(schemaName);
         return await cmd.ExecuteScalarAsync() is not null;

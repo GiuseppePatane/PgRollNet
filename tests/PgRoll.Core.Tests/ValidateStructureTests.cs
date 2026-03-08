@@ -188,8 +188,12 @@ public class ValidateStructureTests
     public void CreateConstraint_ForeignKey_Valid() =>
         new CreateConstraintOperation
         {
-            Table = "orders", Name = "fk", ConstraintType = "foreign_key",
-            Columns = ["user_id"], ReferencesTable = "users", ReferencesColumns = ["id"]
+            Table = "orders",
+            Name = "fk",
+            ConstraintType = "foreign_key",
+            Columns = ["user_id"],
+            ReferencesTable = "users",
+            ReferencesColumns = ["id"]
         }.ValidateStructure().IsValid.Should().BeTrue();
 
     [Fact]

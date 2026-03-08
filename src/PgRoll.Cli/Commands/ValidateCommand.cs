@@ -9,7 +9,7 @@ public static class ValidateCommand
     public static Command Build(GlobalOptions g)
     {
         var offlineOpt = new Option<bool>("--offline", "Validate required fields only, without connecting to the database");
-        var fileArg    = new Argument<FileInfo>("file", "Path to the migration JSON file");
+        var fileArg = new Argument<FileInfo>("file", "Path to the migration JSON file");
 
         var cmd = new Command("validate", "Validate a migration file without executing it.");
         cmd.AddOption(offlineOpt);
@@ -58,7 +58,7 @@ public static class ValidateCommand
             else
             {
                 // Full validation against live schema
-                var reader   = new PgSchemaReader(connection!);
+                var reader = new PgSchemaReader(connection!);
                 var snapshot = await reader.ReadSchemaAsync(schema);
 
                 foreach (var op in migration.Operations)

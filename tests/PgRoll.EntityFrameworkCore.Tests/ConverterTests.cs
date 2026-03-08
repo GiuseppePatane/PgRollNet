@@ -1066,7 +1066,7 @@ public class ConverterTests
         var builder = new MigrationBuilder(activeProvider: null);
         builder.CreateTable("widgets", t => new
         {
-            id   = t.Column<int>(nullable: false),
+            id = t.Column<int>(nullable: false),
             name = t.Column<string>(nullable: true)
         });
 

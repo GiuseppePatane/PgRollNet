@@ -37,7 +37,7 @@ public static class NewCommand
 
     public static Command Build()
     {
-        var nameArg   = new Argument<string?>("name", () => null, "Migration name (optional — you will be prompted if omitted).");
+        var nameArg = new Argument<string?>("name", () => null, "Migration name (optional — you will be prompted if omitted).");
         var outputOpt = new Option<string?>("--output", "Directory where the file is created (default: current directory).");
 
         var cmd = new Command("new", "Interactively scaffold a new migration file with an auto-incremented numeric prefix.");
@@ -59,9 +59,9 @@ public static class NewCommand
             }
 
             // ── Compute auto-incremented prefix ──────────────────────────────
-            var next          = NextSequenceNumber(dir);
+            var next = NextSequenceNumber(dir);
             var migrationName = $"{next:D4}_{name}";
-            var filePath      = Path.Combine(dir, $"{migrationName}.json");
+            var filePath = Path.Combine(dir, $"{migrationName}.json");
 
             if (File.Exists(filePath))
                 throw new InvalidOperationException($"File already exists: {filePath}");
@@ -85,7 +85,7 @@ public static class NewCommand
             // ── Write file ───────────────────────────────────────────────────
             var migration = new Dictionary<string, object>
             {
-                ["name"]       = migrationName,
+                ["name"] = migrationName,
                 ["operations"] = operations,
             };
 
@@ -177,30 +177,30 @@ public static class NewCommand
 
         return type switch
         {
-            "create_table"      => PromptCreateTable(),
-            "drop_table"        => Simple(type, ("table", true)),
-            "rename_table"      => Simple(type, ("from", true), ("to", true)),
-            "add_column"        => PromptAddColumn(),
-            "drop_column"       => Simple(type, ("table", true), ("column", true)),
-            "rename_column"     => Simple(type, ("table", true), ("from", true), ("to", true)),
-            "alter_column"      => PromptAlterColumn(),
-            "create_index"      => PromptCreateIndex(),
-            "drop_index"        => Simple(type, ("table", true), ("name", true)),
+            "create_table" => PromptCreateTable(),
+            "drop_table" => Simple(type, ("table", true)),
+            "rename_table" => Simple(type, ("from", true), ("to", true)),
+            "add_column" => PromptAddColumn(),
+            "drop_column" => Simple(type, ("table", true), ("column", true)),
+            "rename_column" => Simple(type, ("table", true), ("from", true), ("to", true)),
+            "alter_column" => PromptAlterColumn(),
+            "create_index" => PromptCreateIndex(),
+            "drop_index" => Simple(type, ("table", true), ("name", true)),
             "create_constraint" => PromptCreateConstraint(),
-            "drop_constraint"   => Simple(type, ("table", true), ("name", true)),
+            "drop_constraint" => Simple(type, ("table", true), ("name", true)),
             "rename_constraint" => Simple(type, ("table", true), ("from", true), ("to", true)),
-            "set_not_null"      => Simple(type, ("table", true), ("column", true)),
-            "drop_not_null"     => Simple(type, ("table", true), ("column", true)),
-            "set_default"       => PromptSetDefault(),
-            "drop_default"      => Simple(type, ("table", true), ("column", true)),
-            "create_schema"     => Simple(type, ("name", true)),
-            "drop_schema"       => Simple(type, ("name", true)),
-            "create_enum"       => PromptCreateEnum(),
-            "drop_enum"         => Simple(type, ("name", true)),
-            "create_view"       => PromptCreateView(),
-            "drop_view"         => Simple(type, ("name", true)),
-            "raw_sql"           => PromptRawSql(),
-            _                   => null,
+            "set_not_null" => Simple(type, ("table", true), ("column", true)),
+            "drop_not_null" => Simple(type, ("table", true), ("column", true)),
+            "set_default" => PromptSetDefault(),
+            "drop_default" => Simple(type, ("table", true), ("column", true)),
+            "create_schema" => Simple(type, ("name", true)),
+            "drop_schema" => Simple(type, ("name", true)),
+            "create_enum" => PromptCreateEnum(),
+            "drop_enum" => Simple(type, ("name", true)),
+            "create_view" => PromptCreateView(),
+            "drop_view" => Simple(type, ("name", true)),
+            "raw_sql" => PromptRawSql(),
+            _ => null,
         };
     }
 
@@ -263,7 +263,7 @@ public static class NewCommand
 
     private static Dictionary<string, object?> PromptAddColumn()
     {
-        var op  = Op("add_column");
+        var op = Op("add_column");
         op["table"] = Ask("table", required: true);
 
         Console.WriteLine();
@@ -299,7 +299,7 @@ public static class NewCommand
     private static Dictionary<string, object?> PromptAlterColumn()
     {
         var op = Op("alter_column");
-        op["table"]  = Ask("table", required: true);
+        op["table"] = Ask("table", required: true);
         op["column"] = Ask("current column name", required: true);
 
         Console.WriteLine();
@@ -312,7 +312,7 @@ public static class NewCommand
         if (dataType is not null) op["data_type"] = dataType;
 
         var notNull = Ask("not_null [true/false]");
-        if (notNull is "true"  or "t") op["not_null"] = true;
+        if (notNull is "true" or "t") op["not_null"] = true;
         if (notNull is "false" or "f") op["not_null"] = false;
 
         var def = Ask("new default expression");
@@ -336,8 +336,8 @@ public static class NewCommand
     private static Dictionary<string, object?> PromptCreateIndex()
     {
         var op = Op("create_index");
-        op["name"]    = Ask("index name", required: true);
-        op["table"]   = Ask("table", required: true);
+        op["name"] = Ask("index name", required: true);
+        op["table"] = Ask("table", required: true);
         op["columns"] = AskCommaSeparated("columns (comma-separated)");
 
         var unique = Ask("unique? [true/false, default false]");
@@ -350,7 +350,7 @@ public static class NewCommand
     {
         var op = Op("create_constraint");
         op["table"] = Ask("table", required: true);
-        op["name"]  = Ask("constraint name", required: true);
+        op["name"] = Ask("constraint name", required: true);
 
         Console.WriteLine("  Constraint types: check | unique | foreign_key");
         op["constraint_type"] = Ask("constraint type", required: true);
@@ -366,9 +366,9 @@ public static class NewCommand
                 break;
 
             case "foreign_key":
-                op["columns"]             = AskCommaSeparated("columns in this table (comma-separated)");
-                op["references_table"]    = Ask("referenced table", required: true);
-                op["references_columns"]  = AskCommaSeparated("referenced columns (comma-separated)");
+                op["columns"] = AskCommaSeparated("columns in this table (comma-separated)");
+                op["references_table"] = Ask("referenced table", required: true);
+                op["references_columns"] = AskCommaSeparated("referenced columns (comma-separated)");
                 break;
         }
 
@@ -378,8 +378,8 @@ public static class NewCommand
     private static Dictionary<string, object?> PromptSetDefault()
     {
         var op = Op("set_default");
-        op["table"]   = Ask("table", required: true);
-        op["column"]  = Ask("column", required: true);
+        op["table"] = Ask("table", required: true);
+        op["column"] = Ask("column", required: true);
         op["default"] = Ask("default expression (e.g. now(), 0, 'pending')", required: true);
         return op;
     }
@@ -387,7 +387,7 @@ public static class NewCommand
     private static Dictionary<string, object?> PromptCreateEnum()
     {
         var op = Op("create_enum");
-        op["name"]   = Ask("enum type name", required: true);
+        op["name"] = Ask("enum type name", required: true);
         op["values"] = AskCommaSeparated("values (comma-separated, e.g. active,inactive,pending)");
         return op;
     }
@@ -395,7 +395,7 @@ public static class NewCommand
     private static Dictionary<string, object?> PromptCreateView()
     {
         var op = Op("create_view");
-        op["name"]       = Ask("view name", required: true);
+        op["name"] = Ask("view name", required: true);
         op["definition"] = AskMultiline("SELECT definition");
         return op;
     }

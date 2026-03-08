@@ -36,10 +36,10 @@ var parser = new CommandLineBuilder(rootCmd)
     {
         var message = ex switch
         {
-            PgRollException e           => e.Message,
-            PostgresException e         => $"PostgreSQL error ({e.SqlState}): {e.MessageText}",
+            PgRollException e => e.Message,
+            PostgresException e => $"PostgreSQL error ({e.SqlState}): {e.MessageText}",
             InvalidOperationException e => e.Message,
-            _                           => $"{ex.GetType().Name}: {ex.Message}"
+            _ => $"{ex.GetType().Name}: {ex.Message}"
         };
         Console.Error.WriteLine($"Error: {message}");
         ctx.ExitCode = 1;

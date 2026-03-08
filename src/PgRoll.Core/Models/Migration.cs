@@ -59,16 +59,16 @@ public sealed class Migration
     // and numbers. We infer the intended JSON type from the string content.
     private static JsonNode? ToJsonNode(object? obj) => obj switch
     {
-        null                              => null,
-        bool b                            => JsonValue.Create(b),
-        int i                             => JsonValue.Create(i),
-        long l                            => JsonValue.Create(l),
-        float f                           => JsonValue.Create(f),
-        double d                          => JsonValue.Create(d),
-        string s                          => InferJsonValue(s),
-        Dictionary<object, object> dict   => ToJsonObject(dict),
-        List<object> list                 => ToJsonArray(list),
-        _                                 => JsonValue.Create(obj.ToString())
+        null => null,
+        bool b => JsonValue.Create(b),
+        int i => JsonValue.Create(i),
+        long l => JsonValue.Create(l),
+        float f => JsonValue.Create(f),
+        double d => JsonValue.Create(d),
+        string s => InferJsonValue(s),
+        Dictionary<object, object> dict => ToJsonObject(dict),
+        List<object> list => ToJsonArray(list),
+        _ => JsonValue.Create(obj.ToString())
     };
 
     /// <summary>
@@ -78,9 +78,9 @@ public sealed class Migration
     /// </summary>
     private static JsonNode? InferJsonValue(string s)
     {
-        if (string.Equals(s, "true",  StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(true);
+        if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(true);
         if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return JsonValue.Create(false);
-        if (string.Equals(s, "null",  StringComparison.OrdinalIgnoreCase)) return null;
+        if (string.Equals(s, "null", StringComparison.OrdinalIgnoreCase)) return null;
         if (long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var l))
             return JsonValue.Create(l);
         if (double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d))

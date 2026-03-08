@@ -92,99 +92,99 @@ public sealed class PgMigrationExecutor
         try
         {
 
-        var active = await _stateStore.GetActiveMigrationAsync(_schemaName, ct);
-        if (active is not null)
-            throw new MigrationAlreadyActiveError(active.Name);
+            var active = await _stateStore.GetActiveMigrationAsync(_schemaName, ct);
+            if (active is not null)
+                throw new MigrationAlreadyActiveError(active.Name);
 
-        _logger.LogInformation("Starting migration '{Name}'", migration.Name);
+            _logger.LogInformation("Starting migration '{Name}'", migration.Name);
 
-        // Register the migration as active in the state store BEFORE executing any operations.
-        // This is write-ahead: if the process dies mid-execution, `pgroll rollback` can find the
-        // record (done=false) and clean up all artifacts, even without an in-process catch block.
-        var migrationJson = migration.Serialize();
-        var lastCompleted = (await _stateStore.GetHistoryAsync(_schemaName, ct))
-            .LastOrDefault(r => r.Done)?.Name;
+            // Register the migration as active in the state store BEFORE executing any operations.
+            // This is write-ahead: if the process dies mid-execution, `pgroll rollback` can find the
+            // record (done=false) and clean up all artifacts, even without an in-process catch block.
+            var migrationJson = migration.Serialize();
+            var lastCompleted = (await _stateStore.GetHistoryAsync(_schemaName, ct))
+                .LastOrDefault(r => r.Done)?.Name;
 
-        var record = new MigrationRecord(
-            Schema: _schemaName,
-            Name: migration.Name,
-            MigrationJson: migrationJson,
-            CreatedAt: DateTimeOffset.UtcNow,
-            UpdatedAt: DateTimeOffset.UtcNow,
-            Parent: lastCompleted,
-            Done: false
-        );
+            var record = new MigrationRecord(
+                Schema: _schemaName,
+                Name: migration.Name,
+                MigrationJson: migrationJson,
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                Parent: lastCompleted,
+                Done: false
+            );
 
-        await _stateStore.RecordStartedAsync(record, ct);
+            await _stateStore.RecordStartedAsync(record, ct);
 
-        // Track which operations have been started so we can roll them back if a later one fails.
-        // We validate each operation against a fresh snapshot read just before executing it —
-        // this lets multi-op migrations work correctly when one op creates a table that a later
-        // op in the same migration references (e.g. create_table + create_constraint in initial_create).
-        var started = new List<IMigrationOperation>();
-        SchemaSnapshot? lastSnapshot = null;
-        try
-        {
-            foreach (var op in migration.Operations)
+            // Track which operations have been started so we can roll them back if a later one fails.
+            // We validate each operation against a fresh snapshot read just before executing it —
+            // this lets multi-op migrations work correctly when one op creates a table that a later
+            // op in the same migration references (e.g. create_table + create_constraint in initial_create).
+            var started = new List<IMigrationOperation>();
+            SchemaSnapshot? lastSnapshot = null;
+            try
             {
-                // Read a fresh snapshot so this op sees objects created by prior ops.
-                var snapshot = await _schemaReader.ReadSchemaAsync(_schemaName, ct);
-                lastSnapshot = snapshot;
-
-                var result = op.Validate(snapshot);
-                if (!result.IsValid)
-                    throw new InvalidMigrationError(result.Error!);
-
-                if (op.RequiresConcurrentConnection)
-                    await ExecuteStartConcurrently(op, migration, snapshot, ct);
-                else
-                    await ExecuteStartTransactional(op, migration, snapshot, ct);
-
-                started.Add(op);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Migration '{Name}' failed during Start after {Count} operation(s). Rolling back.",
-                migration.Name, started.Count);
-
-            // Use the last known snapshot for rollback (best-effort — avoids another read on error path)
-            var rollbackSnapshot = lastSnapshot ?? await _schemaReader.ReadSchemaAsync(_schemaName, ct);
-
-            foreach (var completedOp in Enumerable.Reverse(started))
-            {
-                try
+                foreach (var op in migration.Operations)
                 {
-                    if (completedOp.RequiresConcurrentConnection)
-                        await ExecuteRollbackConcurrently(completedOp, migration, rollbackSnapshot, ct);
+                    // Read a fresh snapshot so this op sees objects created by prior ops.
+                    var snapshot = await _schemaReader.ReadSchemaAsync(_schemaName, ct);
+                    lastSnapshot = snapshot;
+
+                    var result = op.Validate(snapshot);
+                    if (!result.IsValid)
+                        throw new InvalidMigrationError(result.Error!);
+
+                    if (op.RequiresConcurrentConnection)
+                        await ExecuteStartConcurrently(op, migration, snapshot, ct);
                     else
-                        await ExecuteRollbackTransactional(completedOp, migration, rollbackSnapshot, ct);
-                }
-                catch (Exception rollbackEx)
-                {
-                    _logger.LogError(rollbackEx,
-                        "Failed to rollback operation '{Op}' during Start cleanup.",
-                        completedOp.GetType().Name);
+                        await ExecuteStartTransactional(op, migration, snapshot, ct);
+
+                    started.Add(op);
                 }
             }
-
-            // Remove the state store record so the migration can be retried cleanly.
-            // If this delete fails we log but still re-throw the original error —
-            // the user can use `pgroll rollback` to clean up the remaining record.
-            try { await _stateStore.DeleteRecordAsync(_schemaName, migration.Name, ct); }
-            catch (Exception deleteEx)
+            catch (Exception ex)
             {
-                _logger.LogError(deleteEx,
-                    "Failed to delete state record for '{Name}' after rollback. Run `pgroll rollback` to clean up.",
-                    migration.Name);
+                _logger.LogError(ex,
+                    "Migration '{Name}' failed during Start after {Count} operation(s). Rolling back.",
+                    migration.Name, started.Count);
+
+                // Use the last known snapshot for rollback (best-effort — avoids another read on error path)
+                var rollbackSnapshot = lastSnapshot ?? await _schemaReader.ReadSchemaAsync(_schemaName, ct);
+
+                foreach (var completedOp in Enumerable.Reverse(started))
+                {
+                    try
+                    {
+                        if (completedOp.RequiresConcurrentConnection)
+                            await ExecuteRollbackConcurrently(completedOp, migration, rollbackSnapshot, ct);
+                        else
+                            await ExecuteRollbackTransactional(completedOp, migration, rollbackSnapshot, ct);
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        _logger.LogError(rollbackEx,
+                            "Failed to rollback operation '{Op}' during Start cleanup.",
+                            completedOp.GetType().Name);
+                    }
+                }
+
+                // Remove the state store record so the migration can be retried cleanly.
+                // If this delete fails we log but still re-throw the original error —
+                // the user can use `pgroll rollback` to clean up the remaining record.
+                try { await _stateStore.DeleteRecordAsync(_schemaName, migration.Name, ct); }
+                catch (Exception deleteEx)
+                {
+                    _logger.LogError(deleteEx,
+                        "Failed to delete state record for '{Name}' after rollback. Run `pgroll rollback` to clean up.",
+                        migration.Name);
+                }
+
+                throw;
             }
 
-            throw;
-        }
-
-        _logger.LogInformation("Migration '{Name}' started successfully.", migration.Name);
-        return new StartResult(migration.Name, RequiresComplete: true);
+            _logger.LogInformation("Migration '{Name}' started successfully.", migration.Name);
+            return new StartResult(migration.Name, RequiresComplete: true);
 
         } // end advisory-lock try
         finally

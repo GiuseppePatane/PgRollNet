@@ -43,23 +43,23 @@ public static class ReflectionConverter
                     pgrollOps.Add(new RenameTableOperation
                     {
                         From = Str(op, "Name") ?? "",
-                        To   = Str(op, "NewName") ?? ""
+                        To = Str(op, "NewName") ?? ""
                     });
                     break;
 
                 case "AddColumnOperation":
                     pgrollOps.Add(new AddColumnOperation
                     {
-                        Table  = Str(op, "Table") ?? "",
+                        Table = Str(op, "Table") ?? "",
                         Column = MapColumnDef(op),
-                        Up     = null
+                        Up = null
                     });
                     break;
 
                 case "DropColumnOperation":
                     pgrollOps.Add(new DropColumnOperation
                     {
-                        Table  = Str(op, "Table") ?? "",
+                        Table = Str(op, "Table") ?? "",
                         Column = Str(op, "Name") ?? ""
                     });
                     break;
@@ -68,8 +68,8 @@ public static class ReflectionConverter
                     pgrollOps.Add(new RenameColumnOperation
                     {
                         Table = Str(op, "Table") ?? "",
-                        From  = Str(op, "Name") ?? "",
-                        To    = Str(op, "NewName") ?? ""
+                        From = Str(op, "Name") ?? "",
+                        To = Str(op, "NewName") ?? ""
                     });
                     break;
 
@@ -80,10 +80,10 @@ public static class ReflectionConverter
                 case "CreateIndexOperation":
                     pgrollOps.Add(new CreateIndexOperation
                     {
-                        Name    = Str(op, "Name") ?? "",
-                        Table   = Str(op, "Table") ?? "",
+                        Name = Str(op, "Name") ?? "",
+                        Table = Str(op, "Table") ?? "",
                         Columns = StrArr(op, "Columns"),
-                        Unique  = Bool(op, "IsUnique")
+                        Unique = Bool(op, "IsUnique")
                     });
                     break;
 
@@ -97,10 +97,10 @@ public static class ReflectionConverter
                 case "AddCheckConstraintOperation":
                     pgrollOps.Add(new CreateConstraintOperation
                     {
-                        Table          = Str(op, "Table") ?? "",
-                        Name           = Str(op, "Name") ?? "",
+                        Table = Str(op, "Table") ?? "",
+                        Name = Str(op, "Name") ?? "",
                         ConstraintType = "check",
-                        Check          = Str(op, "Sql")
+                        Check = Str(op, "Sql")
                     });
                     break;
 
@@ -108,17 +108,17 @@ public static class ReflectionConverter
                     pgrollOps.Add(new DropConstraintOperation
                     {
                         Table = Str(op, "Table") ?? "",
-                        Name  = Str(op, "Name") ?? ""
+                        Name = Str(op, "Name") ?? ""
                     });
                     break;
 
                 case "AddUniqueConstraintOperation":
                     pgrollOps.Add(new CreateConstraintOperation
                     {
-                        Table          = Str(op, "Table") ?? "",
-                        Name           = Str(op, "Name") ?? "",
+                        Table = Str(op, "Table") ?? "",
+                        Name = Str(op, "Name") ?? "",
                         ConstraintType = "unique",
-                        Columns        = StrArr(op, "Columns")
+                        Columns = StrArr(op, "Columns")
                     });
                     break;
 
@@ -126,18 +126,18 @@ public static class ReflectionConverter
                     pgrollOps.Add(new DropConstraintOperation
                     {
                         Table = Str(op, "Table") ?? "",
-                        Name  = Str(op, "Name") ?? ""
+                        Name = Str(op, "Name") ?? ""
                     });
                     break;
 
                 case "AddForeignKeyOperation":
                     pgrollOps.Add(new CreateConstraintOperation
                     {
-                        Table             = Str(op, "Table") ?? "",
-                        Name              = Str(op, "Name") ?? "",
-                        ConstraintType    = "foreign_key",
-                        Columns           = StrArr(op, "Columns"),
-                        ReferencesTable   = Str(op, "PrincipalTable"),
+                        Table = Str(op, "Table") ?? "",
+                        Name = Str(op, "Name") ?? "",
+                        ConstraintType = "foreign_key",
+                        Columns = StrArr(op, "Columns"),
+                        ReferencesTable = Str(op, "PrincipalTable"),
                         ReferencesColumns = StrArr(op, "PrincipalColumns")
                     });
                     break;
@@ -146,7 +146,7 @@ public static class ReflectionConverter
                     pgrollOps.Add(new DropConstraintOperation
                     {
                         Table = Str(op, "Table") ?? "",
-                        Name  = Str(op, "Name") ?? ""
+                        Name = Str(op, "Name") ?? ""
                     });
                     break;
 
@@ -158,44 +158,44 @@ public static class ReflectionConverter
                     break;
 
                 case "InsertDataOperation":
-                {
-                    var values = Matrix(op, "Values");
-                    if (values.GetLength(0) > 0)
-                        pgrollOps.Add(new RawSqlOperation
-                        {
-                            Sql = DataSeedingSqlGenerator.GenerateInsert(
-                                Str(op, "Schema"), Str(op, "Table") ?? "",
-                                StrArr(op, "Columns"), values)
-                        });
-                    break;
-                }
+                    {
+                        var values = Matrix(op, "Values");
+                        if (values.GetLength(0) > 0)
+                            pgrollOps.Add(new RawSqlOperation
+                            {
+                                Sql = DataSeedingSqlGenerator.GenerateInsert(
+                                    Str(op, "Schema"), Str(op, "Table") ?? "",
+                                    StrArr(op, "Columns"), values)
+                            });
+                        break;
+                    }
 
                 case "UpdateDataOperation":
-                {
-                    var values = Matrix(op, "Values");
-                    if (values.GetLength(0) > 0)
-                        pgrollOps.Add(new RawSqlOperation
-                        {
-                            Sql = DataSeedingSqlGenerator.GenerateUpdate(
-                                Str(op, "Schema"), Str(op, "Table") ?? "",
-                                StrArr(op, "KeyColumns"), Matrix(op, "KeyValues"),
-                                StrArr(op, "Columns"), values)
-                        });
-                    break;
-                }
+                    {
+                        var values = Matrix(op, "Values");
+                        if (values.GetLength(0) > 0)
+                            pgrollOps.Add(new RawSqlOperation
+                            {
+                                Sql = DataSeedingSqlGenerator.GenerateUpdate(
+                                    Str(op, "Schema"), Str(op, "Table") ?? "",
+                                    StrArr(op, "KeyColumns"), Matrix(op, "KeyValues"),
+                                    StrArr(op, "Columns"), values)
+                            });
+                        break;
+                    }
 
                 case "DeleteDataOperation":
-                {
-                    var keyValues = Matrix(op, "KeyValues");
-                    if (keyValues.GetLength(0) > 0)
-                        pgrollOps.Add(new RawSqlOperation
-                        {
-                            Sql = DataSeedingSqlGenerator.GenerateDelete(
-                                Str(op, "Schema"), Str(op, "Table") ?? "",
-                                StrArr(op, "KeyColumns"), keyValues)
-                        });
-                    break;
-                }
+                    {
+                        var keyValues = Matrix(op, "KeyValues");
+                        if (keyValues.GetLength(0) > 0)
+                            pgrollOps.Add(new RawSqlOperation
+                            {
+                                Sql = DataSeedingSqlGenerator.GenerateDelete(
+                                    Str(op, "Schema"), Str(op, "Table") ?? "",
+                                    StrArr(op, "KeyColumns"), keyValues)
+                            });
+                        break;
+                    }
 
                 // ── Schema ops ────────────────────────────────────────────────
 
@@ -319,8 +319,8 @@ public static class ReflectionConverter
     {
         var tableName = Str(op, "Name") ?? "";
 
-        var pkObj    = Obj(op, "PrimaryKey");
-        var pkCols   = pkObj is not null ? StrArr(pkObj, "Columns") : [];
+        var pkObj = Obj(op, "PrimaryKey");
+        var pkCols = pkObj is not null ? StrArr(pkObj, "Columns") : [];
 
         // For composite PKs (> 1 column) we emit the PK as a separate raw_sql after the table,
         // because pgroll's create_table only supports single-column PRIMARY KEY inline.
@@ -329,10 +329,10 @@ public static class ReflectionConverter
         var columns = List(op, "Columns")
             .Select(c => new ColumnDefinition
             {
-                Name       = Str(c, "Name") ?? "",
-                Type       = MapType(Str(c, "ColumnType"), ClrType(c)),
-                Nullable   = Bool(c, "IsNullable"),
-                Default    = Str(c, "DefaultValueSql"),
+                Name = Str(c, "Name") ?? "",
+                Type = MapType(Str(c, "ColumnType"), ClrType(c)),
+                Nullable = Bool(c, "IsNullable"),
+                Default = Str(c, "DefaultValueSql"),
                 PrimaryKey = !isCompositePk && pkCols.Contains(Str(c, "Name") ?? "")
             })
             .ToList();
@@ -353,30 +353,30 @@ public static class ReflectionConverter
         foreach (var uc in List(op, "UniqueConstraints"))
             result.Add(new CreateConstraintOperation
             {
-                Table          = tableName,
-                Name           = Str(uc, "Name") ?? "",
+                Table = tableName,
+                Name = Str(uc, "Name") ?? "",
                 ConstraintType = "unique",
-                Columns        = StrArr(uc, "Columns")
+                Columns = StrArr(uc, "Columns")
             });
 
         foreach (var fk in List(op, "ForeignKeys"))
             result.Add(new CreateConstraintOperation
             {
-                Table             = tableName,
-                Name              = Str(fk, "Name") ?? "",
-                ConstraintType    = "foreign_key",
-                Columns           = StrArr(fk, "Columns"),
-                ReferencesTable   = Str(fk, "PrincipalTable"),
+                Table = tableName,
+                Name = Str(fk, "Name") ?? "",
+                ConstraintType = "foreign_key",
+                Columns = StrArr(fk, "Columns"),
+                ReferencesTable = Str(fk, "PrincipalTable"),
                 ReferencesColumns = StrArr(fk, "PrincipalColumns")
             });
 
         foreach (var ck in List(op, "CheckConstraints"))
             result.Add(new CreateConstraintOperation
             {
-                Table          = tableName,
-                Name           = Str(ck, "Name") ?? "",
+                Table = tableName,
+                Name = Str(ck, "Name") ?? "",
                 ConstraintType = "check",
-                Check          = Str(ck, "Sql")
+                Check = Str(ck, "Sql")
             });
     }
 
@@ -388,13 +388,13 @@ public static class ReflectionConverter
 
         var newColType = Str(op, "ColumnType");
         var oldColType = oldCol is not null ? Str(oldCol, "ColumnType") : null;
-        var dataType   = newColType is not null && oldColType is not null && newColType != oldColType
+        var dataType = newColType is not null && oldColType is not null && newColType != oldColType
             ? newColType
             : null;
 
         var newNullable = Bool(op, "IsNullable");
         var oldNullable = oldCol is not null && Bool(oldCol, "IsNullable");
-        bool? notNull   = (!newNullable && oldNullable) ? true : null;
+        bool? notNull = (!newNullable && oldNullable) ? true : null;
 
         var newDefault = Str(op, "DefaultValueSql");
         var oldDefault = oldCol is not null ? Str(oldCol, "DefaultValueSql") : null;
@@ -402,12 +402,12 @@ public static class ReflectionConverter
 
         return new AlterColumnOperation
         {
-            Table    = Str(op, "Table") ?? "",
-            Column   = Str(op, "Name") ?? "",
+            Table = Str(op, "Table") ?? "",
+            Column = Str(op, "Name") ?? "",
             DataType = dataType,
-            NotNull  = notNull,
-            Default  = defaultVal,
-            Up       = null
+            NotNull = notNull,
+            Default = defaultVal,
+            Up = null
         };
     }
 
@@ -415,8 +415,8 @@ public static class ReflectionConverter
 
     private static ColumnDefinition MapColumnDef(object op) => new()
     {
-        Name    = Str(op, "Name") ?? "",
-        Type    = MapType(Str(op, "ColumnType"), ClrType(op)),
+        Name = Str(op, "Name") ?? "",
+        Type = MapType(Str(op, "ColumnType"), ClrType(op)),
         Nullable = Bool(op, "IsNullable"),
         Default = Str(op, "DefaultValueSql")
     };
@@ -434,20 +434,20 @@ public static class ReflectionConverter
 
         var t = Nullable.GetUnderlyingType(clrType) ?? clrType;
 
-        if (t == typeof(string))            return "text";
-        if (t == typeof(int))               return "integer";
-        if (t == typeof(long))              return "bigint";
-        if (t == typeof(short))             return "smallint";
-        if (t == typeof(bool))              return "boolean";
-        if (t == typeof(Guid))              return "uuid";
-        if (t == typeof(decimal))           return "numeric";
-        if (t == typeof(double))            return "double precision";
-        if (t == typeof(float))             return "real";
-        if (t == typeof(byte[]))            return "bytea";
-        if (t == typeof(DateTime))          return "timestamp with time zone";
-        if (t == typeof(DateTimeOffset))    return "timestamp with time zone";
-        if (t == typeof(DateOnly))          return "date";
-        if (t == typeof(TimeOnly))          return "time";
+        if (t == typeof(string)) return "text";
+        if (t == typeof(int)) return "integer";
+        if (t == typeof(long)) return "bigint";
+        if (t == typeof(short)) return "smallint";
+        if (t == typeof(bool)) return "boolean";
+        if (t == typeof(Guid)) return "uuid";
+        if (t == typeof(decimal)) return "numeric";
+        if (t == typeof(double)) return "double precision";
+        if (t == typeof(float)) return "real";
+        if (t == typeof(byte[])) return "bytea";
+        if (t == typeof(DateTime)) return "timestamp with time zone";
+        if (t == typeof(DateTimeOffset)) return "timestamp with time zone";
+        if (t == typeof(DateOnly)) return "date";
+        if (t == typeof(TimeOnly)) return "time";
 
         return "text";
     }
@@ -477,7 +477,7 @@ public static class ReflectionConverter
         var val = o.GetType().GetProperty(prop)?.GetValue(o);
         return val switch
         {
-            string[] arr            => arr,
+            string[] arr => arr,
             IEnumerable<string> seq => seq.ToArray(),
             System.Collections.IEnumerable e => e.Cast<string>().ToArray(),
             _ => []

@@ -33,7 +33,10 @@ public class ConstraintValidationTests
         var schema = BuildSchema("users", ["id", "age"]);
         var op = new CreateConstraintOperation
         {
-            Table = "users", Name = "chk_age", ConstraintType = "check", Check = "age > 0"
+            Table = "users",
+            Name = "chk_age",
+            ConstraintType = "check",
+            Check = "age > 0"
         };
         op.Validate(schema).IsValid.Should().BeTrue();
     }
@@ -52,7 +55,10 @@ public class ConstraintValidationTests
         var schema = BuildSchema("users", ["id", "email"]);
         var op = new CreateConstraintOperation
         {
-            Table = "users", Name = "uniq_email", ConstraintType = "unique", Columns = ["email"]
+            Table = "users",
+            Name = "uniq_email",
+            ConstraintType = "unique",
+            Columns = ["email"]
         };
         op.Validate(schema).IsValid.Should().BeTrue();
     }
@@ -72,7 +78,10 @@ public class ConstraintValidationTests
             [("chk_age", "c", "CHECK ((age > 0))")]);
         var op = new CreateConstraintOperation
         {
-            Table = "users", Name = "chk_age", ConstraintType = "check", Check = "age > 0"
+            Table = "users",
+            Name = "chk_age",
+            ConstraintType = "check",
+            Check = "age > 0"
         };
         var result = op.Validate(schema);
         result.IsValid.Should().BeFalse();
@@ -84,7 +93,10 @@ public class ConstraintValidationTests
     {
         var op = new CreateConstraintOperation
         {
-            Table = "missing", Name = "chk_x", ConstraintType = "check", Check = "x > 0"
+            Table = "missing",
+            Name = "chk_x",
+            ConstraintType = "check",
+            Check = "x > 0"
         };
         op.Validate(SchemaSnapshot.Empty).IsValid.Should().BeFalse();
     }
