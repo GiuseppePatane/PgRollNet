@@ -28,17 +28,28 @@ jobs:
         run: echo "PACKAGE_VERSION=${PACKAGE_VERSION#v}" >> $GITHUB_ENV
 
       - name: Build
-        run: dotnet build PgRoll.slnx --no-restore --configuration Release /p:Version=$PACKAGE_VERSION
+        run: |
+          dotnet build PgRoll.slnx --no-restore --configuration Release \
+            /p:Version=$PACKAGE_VERSION \
+            /p:InformationalVersion=$PACKAGE_VERSION
 
       - name: Test
         run: dotnet test PgRoll.slnx --no-build --configuration Release --verbosity normal
 
       - name: Pack
         run: |
-          dotnet pack src/PgRoll.Core/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
-          dotnet pack src/PgRoll.PostgreSQL/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
-          dotnet pack src/PgRoll.EntityFrameworkCore/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
-          dotnet pack src/PgRoll.Cli/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.Core/ --no-build --configuration Release --output ./nupkgs \
+            /p:Version=$PACKAGE_VERSION \
+            /p:InformationalVersion=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.PostgreSQL/ --no-build --configuration Release --output ./nupkgs \
+            /p:Version=$PACKAGE_VERSION \
+            /p:InformationalVersion=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.EntityFrameworkCore/ --no-build --configuration Release --output ./nupkgs \
+            /p:Version=$PACKAGE_VERSION \
+            /p:InformationalVersion=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.Cli/ --no-build --configuration Release --output ./nupkgs \
+            /p:Version=$PACKAGE_VERSION \
+            /p:InformationalVersion=$PACKAGE_VERSION
 
       - name: Smoke test packaged CLI
         run: |
