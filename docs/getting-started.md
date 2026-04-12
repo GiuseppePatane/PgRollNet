@@ -11,6 +11,8 @@ description: Install pgroll-net, initialize your database, and run your first ze
 - PostgreSQL 14 or later
 - Docker (for running tests)
 
+The CI-verified support matrix currently covers PostgreSQL 14, 15, 16, and 17. The minimum verified version is PostgreSQL 14.
+
 ## Installation
 
 ### As a dotnet global tool

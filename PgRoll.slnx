@@ -6,6 +6,7 @@
     <Project Path="src/PgRoll.PostgreSQL/PgRoll.PostgreSQL.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PgRoll.Cli.Tests/PgRoll.Cli.Tests.csproj" />
     <Project Path="tests/PgRoll.Core.Tests/PgRoll.Core.Tests.csproj" />
     <Project Path="tests/PgRoll.EntityFrameworkCore.Tests/PgRoll.EntityFrameworkCore.Tests.csproj" />
     <Project Path="tests/PgRoll.PostgreSQL.Tests/PgRoll.PostgreSQL.Tests.csproj" />

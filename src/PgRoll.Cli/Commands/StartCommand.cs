@@ -84,7 +84,7 @@ public static class StartCommand
         }
 
         // Online validation against the live schema
-        var reader = new PgSchemaReader(connection);
+        await using var reader = new PgSchemaReader(connection);
         var snapshot = await reader.ReadSchemaAsync(schema);
 
         var errors = new List<string>();

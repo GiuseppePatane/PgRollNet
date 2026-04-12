@@ -6,6 +6,10 @@
 
 Zero-downtime PostgreSQL schema migrations for .NET — a port of [pgroll](https://github.com/xataio/pgroll) to the .NET ecosystem.
 
+Minimum verified PostgreSQL version: 14.
+
+CI verifies the project against PostgreSQL 14, 15, 16, and 17, including packaged CLI smoke tests.
+
 ## Features
 
 - **Zero downtime** — old and new application versions run simultaneously during migrations

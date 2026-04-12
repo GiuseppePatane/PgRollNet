@@ -15,7 +15,7 @@ public static class ValidateCommand
         cmd.AddOption(offlineOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (offline, file, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (offline, file, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
             if (!file.Exists)
             {
@@ -58,7 +58,10 @@ public static class ValidateCommand
             else
             {
                 // Full validation against live schema
-                var reader = new PgSchemaReader(connection!);
+                if (verbose)
+                    Console.WriteLine($"Reading live schema '{schema}' for validation...");
+
+                await using var reader = new PgSchemaReader(connection!);
                 var snapshot = await reader.ReadSchemaAsync(schema);
 
                 foreach (var op in migration.Operations)
@@ -81,7 +84,7 @@ public static class ValidateCommand
                     Console.WriteLine(err);
                 Environment.Exit(1);
             }
-        }, offlineOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, offlineOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

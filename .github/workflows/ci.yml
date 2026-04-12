@@ -7,8 +7,20 @@ on:
     branches: ["**"]
 
 jobs:
-  build-and-test:
+  build-test-pack:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres_image:
+          - postgres:14-alpine
+          - postgres:15-alpine
+          - postgres:16-alpine
+          - postgres:17-alpine
+
+    env:
+      PGROLL_TEST_POSTGRES_IMAGE: ${{ matrix.postgres_image }}
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.dotnet
 
     steps:
       - uses: actions/checkout@v4
@@ -19,16 +31,25 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore PgRoll.slnx
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build PgRoll.slnx --no-restore --configuration Release
 
-      - name: Test (Core)
-        run: dotnet test tests/PgRoll.Core.Tests/ --no-build --configuration Release --verbosity normal
+      - name: Test
+        run: dotnet test PgRoll.slnx --no-build --configuration Release --verbosity normal
 
-      - name: Test (EF Core)
-        run: dotnet test tests/PgRoll.EntityFrameworkCore.Tests/ --no-build --configuration Release --verbosity normal
+      - name: Pack
+        run: |
+          dotnet pack src/PgRoll.Core/ --no-build --configuration Release --output ./nupkgs
+          dotnet pack src/PgRoll.PostgreSQL/ --no-build --configuration Release --output ./nupkgs
+          dotnet pack src/PgRoll.EntityFrameworkCore/ --no-build --configuration Release --output ./nupkgs
+          dotnet pack src/PgRoll.Cli/ --no-build --configuration Release --output ./nupkgs
 
-      - name: Test (PostgreSQL integration)
-        run: dotnet test tests/PgRoll.PostgreSQL.Tests/ --no-build --configuration Release --verbosity normal
+      - name: Smoke test packaged CLI
+        run: |
+          mkdir -p ./.tools
+          dotnet tool install --tool-path ./.tools --add-source ./nupkgs --ignore-failed-sources PgRoll.Cli --version 1.0.0
+          ./.tools/pgroll-net --help
+          ./.tools/pgroll-net validate --help
+          ./.tools/pgroll-net efcore convert --help

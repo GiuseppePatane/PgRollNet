@@ -10,36 +10,33 @@ hero:
       text: Get Started
       link: /getting-started
     - theme: alt
+      text: Production Readiness
+      link: /production-readiness
+    - theme: alt
       text: CLI Reference
       link: /cli-reference
-    - theme: alt
-      text: View on GitHub
-      link: https://github.com/GiuseppePatane/PgRollNet
 
 features:
-  - icon: 🔄
-    title: Zero Downtime
+  - title: Zero Downtime
     details: Old and new schemas coexist during deployment. Both application versions work simultaneously — no maintenance windows.
 
-  - icon: 🛡️
-    title: Safe Rollback
+  - title: Safe Rollback
     details: Every migration can be rolled back before Complete. Soft-delete for tables, expand/contract for columns, NOT VALID for constraints.
 
-  - icon: ⚡
-    title: Non-Blocking
+  - title: Non-Blocking
     details: Indexes are created CONCURRENTLY. Constraints are added NOT VALID and validated separately. Backfill is batched with SKIP LOCKED.
 
-  - icon: 🔌
-    title: EF Core Integration
+  - title: EF Core Integration
     details: Convert your existing EF Core migrations to pgroll JSON in a single command. Works with EF Core 7, 8, 9 and later.
 
-  - icon: 🚀
-    title: CD-Ready
+  - title: CD-Ready
     details: pgroll-net pending exits with code 1 when migrations are pending — plug it directly into GitHub Actions, Azure DevOps, or Kubernetes init containers.
 
-  - icon: 🏗️
-    title: .NET Native
+  - title: .NET Native
     details: Built on .NET 10 with Npgsql. Available as a dotnet global tool (pgroll-net) and as NuGet libraries (PgRoll.PostgreSQL, PgRoll.EntityFrameworkCore).
+
+  - title: Verified Matrix
+    details: CI validates the full build, test, packaging, and packaged-tool workflow against PostgreSQL 14, 15, 16, and 17. The minimum verified version is PostgreSQL 14.
 ---
 
 ## Quick Start

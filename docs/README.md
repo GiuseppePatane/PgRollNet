@@ -74,7 +74,7 @@ See [EF Core Integration](efcore.md) for the full adoption guide.
 
 ## Stack
 
-- .NET 10, PostgreSQL 14+
+- .NET 10, PostgreSQL 14+ (minimum verified version: PostgreSQL 14; CI matrix covers 14, 15, 16, and 17)
 - `PgRoll.Core` — database-agnostic operation model
 - `PgRoll.PostgreSQL` — PostgreSQL implementation (Npgsql)
 - `PgRoll.Cli` — dotnet tool (`pgroll`)

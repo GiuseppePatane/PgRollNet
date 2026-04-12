@@ -7,9 +7,12 @@ namespace PgRoll.PostgreSQL.Tests.Infrastructure;
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
+    private static readonly string PostgresImage =
+        Environment.GetEnvironmentVariable("PGROLL_TEST_POSTGRES_IMAGE") ?? "postgres:17-alpine";
+
     private readonly PostgreSqlContainer _container =
         new PostgreSqlBuilder()
-            .WithImage("postgres:17-alpine")
+            .WithImage(PostgresImage)
             .Build();
 
     public string ConnectionString => _container.GetConnectionString();
