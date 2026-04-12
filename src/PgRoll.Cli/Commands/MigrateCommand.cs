@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using PgRoll.Core.Models;
 
 namespace PgRoll.Cli.Commands;
@@ -14,9 +15,20 @@ public static class MigrateCommand
         cmd.AddArgument(dirArg);
         cmd.AddOption(continueOnError);
 
-        cmd.SetHandler(async (dir, skipOnError, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
+        cmd.SetHandler(async (InvocationContext ctx) =>
         {
-            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
+            var dir = ctx.ParseResult.GetValueForArgument(dirArg);
+            var skipOnError = ctx.ParseResult.GetValueForOption(continueOnError);
+            var connection = ctx.ParseResult.GetValueForOption(g.Connection);
+            var schema = ctx.ParseResult.GetValueForOption(g.Schema)!;
+            var pgrollSchema = ctx.ParseResult.GetValueForOption(g.PgrollSchema)!;
+            var lockTimeout = ctx.ParseResult.GetValueForOption(g.LockTimeout);
+            var statementTimeout = ctx.ParseResult.GetValueForOption(g.StatementTimeout);
+            var backfillBatchSize = ctx.ParseResult.GetValueForOption(g.BackfillBatchSize);
+            var backfillDelayMs = ctx.ParseResult.GetValueForOption(g.BackfillDelayMs);
+            var role = ctx.ParseResult.GetValueForOption(g.Role);
+            var verbose = ctx.ParseResult.GetValueForOption(g.Verbose);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, statementTimeout, backfillBatchSize, backfillDelayMs, role, verbose);
 
             var migrationFiles = dir.GetFiles("*.json")
                 .Concat(dir.GetFiles("*.yaml"))
@@ -35,6 +47,9 @@ public static class MigrateCommand
                 loadedMigrations.Add((file, await Migration.LoadAsync(file.FullName)));
 
             var history = await executor.GetHistoryAsync();
+            var mismatches = MigrationDiagnostics.CompareChecksums(loadedMigrations, history);
+            if (mismatches.Count > 0)
+                throw new PgRoll.Core.Errors.PgRollException($"Checksum mismatch for applied migration(s): {string.Join(", ", mismatches.Select(m => m.Name))}");
             var applied = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
             var pending = loadedMigrations
@@ -57,6 +72,8 @@ public static class MigrateCommand
                     continue;
                 }
                 Console.WriteLine($"  Applying '{migration.Name}'...");
+                foreach (var warning in MigrationDiagnostics.GetWarnings(migration).Distinct())
+                    Console.WriteLine($"  Warning: {warning}");
                 try
                 {
                     await executor.StartAsync(migration);
@@ -82,7 +99,7 @@ public static class MigrateCommand
                 Console.WriteLine($"Finished with {failed.Count} skipped migration(s): {string.Join(", ", failed)}");
             else
                 Console.WriteLine("All migrations applied.");
-        }, dirArg, continueOnError, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
+        });
 
         return cmd;
     }

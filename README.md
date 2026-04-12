@@ -16,10 +16,12 @@ CI verifies the project against PostgreSQL 14, 15, 16, and 17, including package
 - **Instant rollback** — roll back any migration without data loss
 - **20+ operations** — create/drop tables, columns, indexes, constraints, enums, views, schemas, and more
 - **EF Core integration** — convert EF Core migrations to pgroll JSON automatically
-- **CLI tool** — `pgroll-net init|start|complete|rollback|status|validate|migrate|pending|pull|baseline|latest|new`
+- **CLI tool** — `pgroll-net init|start|complete|rollback|status|validate|migrate|pending|pull|baseline|latest|doctor|plan|inspect-active|new`
 - **YAML support** — write migrations in JSON or YAML
 - **Offline validation** — validate migration files without a database connection
-- **Global flags** — `--schema`, `--pgroll-schema`, `--lock-timeout`, `--role`, `--verbose`
+- **Drift detection** — applied migrations store checksums so renamed files stay safe but edited files are rejected
+- **Operational tooling** — `doctor`, `plan`, `inspect-active`, batched backfill tuning, and verbose execution logs
+- **Global flags** — `--schema`, `--pgroll-schema`, `--lock-timeout`, `--statement-timeout`, `--backfill-batch-size`, `--backfill-delay-ms`, `--role`, `--verbose`
 
 ## Installation
 
@@ -57,6 +59,15 @@ pgroll-net rollback --connection "..."
 # Apply all pending migrations from a directory (JSON and YAML supported)
 pgroll-net migrate ./migrations --connection "..."
 
+# Inspect the active migration before recovery/complete
+pgroll-net inspect-active --connection "..."
+
+# Check prerequisites and migration history integrity
+pgroll-net doctor --connection "..." --migrations ./migrations
+
+# Print a text or JSON execution plan without applying
+pgroll-net plan ./migrations/01_create_users.json --format json
+
 # Mark current database state as baseline (no-op migration)
 pgroll-net baseline my_baseline --connection "..."
 
@@ -74,6 +85,9 @@ All commands accept these global options:
 | `--schema` | `public` | Target user schema |
 | `--pgroll-schema` | `pgroll` | Internal pgroll state schema |
 | `--lock-timeout` | `500` | DDL lock timeout in milliseconds |
+| `--statement-timeout` | `0` | Statement timeout in milliseconds (`0` = PostgreSQL default) |
+| `--backfill-batch-size` | `1000` | Batch size used for expand/contract backfills |
+| `--backfill-delay-ms` | `0` | Delay between backfill batches in milliseconds |
 | `--role` | — | PostgreSQL role to `SET` before executing DDL |
 | `--verbose` | `false` | Enable verbose logging |
 
@@ -175,6 +189,14 @@ var result = EfCoreMigrationConverter.Convert("AddUserTable", efCoreMigrationOpe
 | `create_view` | Create a view |
 | `drop_view` | Drop a view |
 | `raw_sql` | Execute arbitrary SQL with optional rollback SQL |
+
+## Operational Notes
+
+- Applied migrations are matched by migration `name`, not by filename.
+- Renaming an already applied file is safe as long as the migration contents do not change.
+- Changing the contents of an already applied migration is rejected by checksum validation in `pending`, `migrate`, and `doctor`.
+- Use `doctor` before production rollouts to verify server version, schema privileges, pgroll state, and optional migration history integrity.
+- Use `inspect-active` to see the active migration, its checksum, and the version schema that would be involved in recovery.
 
 ## License
 

@@ -112,6 +112,12 @@ pgroll-net validate ./migrations/001_create_users.json \
 
 Use `--offline` to validate structure only without a database connection.
 
+For a machine-readable preview without executing anything:
+
+```bash
+pgroll-net plan ./migrations/001_create_users.json --format json
+```
+
 ### 5. Start the migration
 
 ```bash
@@ -120,6 +126,16 @@ pgroll-net start ./migrations/001_create_users.json \
 ```
 
 During the Start phase the migration is applied to the database. For simple operations like `create_table` this is immediate. For operations that use the expand/contract pattern (e.g. `add_column` with an `up` expression) a temporary schema is created and data backfilled.
+
+Large backfills can be tuned from the CLI:
+
+```bash
+pgroll-net start ./migrations/001_create_users.json \
+  --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret" \
+  --statement-timeout 30000 \
+  --backfill-batch-size 5000 \
+  --backfill-delay-ms 25
+```
 
 ### 6. Complete the migration
 
@@ -158,6 +174,24 @@ pgroll-net migrate ./migrations \
   --continue-on-error
 ```
 
+Already applied migrations are verified by checksum. Renaming a file is safe; editing the contents of an applied migration causes `pending` and `migrate` to fail fast.
+
+## Operational Checks
+
+Run a preflight check before production rollout:
+
+```bash
+pgroll-net doctor \
+  --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret" \
+  --migrations ./migrations
+```
+
+Inspect an active migration and its version schema:
+
+```bash
+pgroll-net inspect-active --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+```
+
 ## Global Flags
 
 All commands that interact with the database accept these global options:
@@ -168,6 +202,9 @@ All commands that interact with the database accept these global options:
 | `--schema` | `public` | Target user schema |
 | `--pgroll-schema` | `pgroll` | Internal pgroll state schema |
 | `--lock-timeout` | `500` | DDL lock timeout in milliseconds |
+| `--statement-timeout` | `0` | SQL statement timeout in milliseconds (`0` = PostgreSQL default) |
+| `--backfill-batch-size` | `1000` | Batch size for expand/contract backfills |
+| `--backfill-delay-ms` | `0` | Delay between backfill batches in milliseconds |
 | `--role` | — | PostgreSQL role to `SET` before executing DDL |
 | `--verbose` | `false` | Enable verbose logging |
 

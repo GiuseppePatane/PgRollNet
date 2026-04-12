@@ -26,6 +26,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
     private readonly string _schemaName;
     private readonly string? _role;
     private readonly int _lockTimeoutMs;
+    private readonly int _statementTimeoutMs;
+    private readonly int _backfillBatchSize;
+    private readonly int _backfillDelayMs;
     private readonly ILoggerFactory? _loggerFactory;
     private readonly bool _ownsDataSource;
     private readonly bool _ownsLoggerFactory;
@@ -42,6 +45,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         string pgrollSchema = "pgroll",
         string? role = null,
         int lockTimeoutMs = 500,
+        int statementTimeoutMs = 0,
+        int backfillBatchSize = 1000,
+        int backfillDelayMs = 0,
         ILoggerFactory? loggerFactory = null,
         ILogger<PgMigrationExecutor>? logger = null)
         : this(
@@ -50,6 +56,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
             pgrollSchema,
             role,
             lockTimeoutMs,
+            statementTimeoutMs,
+            backfillBatchSize,
+            backfillDelayMs,
             loggerFactory,
             logger,
             ownsDataSource: false,
@@ -63,6 +72,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         string pgrollSchema,
         string? role,
         int lockTimeoutMs,
+        int statementTimeoutMs,
+        int backfillBatchSize,
+        int backfillDelayMs,
         ILoggerFactory? loggerFactory,
         ILogger<PgMigrationExecutor>? logger,
         bool ownsDataSource,
@@ -72,6 +84,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         _schemaName = schemaName;
         _role = role;
         _lockTimeoutMs = lockTimeoutMs;
+        _statementTimeoutMs = statementTimeoutMs;
+        _backfillBatchSize = backfillBatchSize;
+        _backfillDelayMs = backfillDelayMs;
         _loggerFactory = loggerFactory;
         _ownsDataSource = ownsDataSource;
         _ownsLoggerFactory = ownsLoggerFactory;
@@ -85,6 +100,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         string schemaName = "public",
         string pgrollSchema = "pgroll",
         int lockTimeoutMs = 500,
+        int statementTimeoutMs = 0,
+        int backfillBatchSize = 1000,
+        int backfillDelayMs = 0,
         string? role = null,
         ILoggerFactory? loggerFactory = null,
         ILogger<PgMigrationExecutor>? logger = null)
@@ -94,6 +112,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
             pgrollSchema,
             role,
             lockTimeoutMs,
+            statementTimeoutMs,
+            backfillBatchSize,
+            backfillDelayMs,
             loggerFactory,
             logger,
             ownsDataSource: true,
@@ -106,6 +127,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         string schemaName = "public",
         string pgrollSchema = "pgroll",
         int lockTimeoutMs = 500,
+        int statementTimeoutMs = 0,
+        int backfillBatchSize = 1000,
+        int backfillDelayMs = 0,
         string? role = null,
         ILoggerFactory? loggerFactory = null,
         ILogger<PgMigrationExecutor>? logger = null)
@@ -115,6 +139,9 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
             pgrollSchema,
             role,
             lockTimeoutMs,
+            statementTimeoutMs,
+            backfillBatchSize,
+            backfillDelayMs,
             loggerFactory,
             logger,
             ownsDataSource: true,
@@ -125,6 +152,8 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         var conn = await _dataSource.OpenConnectionAsync(ct);
         if (_lockTimeoutMs > 0)
             await ExecAsync(conn, $"SET lock_timeout = '{_lockTimeoutMs}ms'", ct);
+        if (_statementTimeoutMs > 0)
+            await ExecAsync(conn, $"SET statement_timeout = '{_statementTimeoutMs}ms'", ct);
         if (_role is not null)
             await ExecAsync(conn, $"SET ROLE {QuoteIdent(_role)}", ct);
         return conn;
@@ -161,6 +190,7 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
             // This is write-ahead: if the process dies mid-execution, `pgroll rollback` can find the
             // record (done=false) and clean up all artifacts, even without an in-process catch block.
             var migrationJson = migration.Serialize();
+            var migrationChecksum = MigrationChecksum.ComputeSha256(migrationJson);
             var lastCompleted = (await _stateStore.GetHistoryAsync(_schemaName, ct))
                 .LastOrDefault(r => r.Done)?.Name;
 
@@ -168,6 +198,7 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
                 Schema: _schemaName,
                 Name: migration.Name,
                 MigrationJson: migrationJson,
+                MigrationChecksum: migrationChecksum,
                 CreatedAt: DateTimeOffset.UtcNow,
                 UpdatedAt: DateTimeOffset.UtcNow,
                 Parent: lastCompleted,
@@ -323,10 +354,12 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
         var parent = history.LastOrDefault(r => r.Done)?.Name;
 
         var emptyMigration = new Migration { Name = migrationName, Operations = [] };
+        var emptyMigrationJson = emptyMigration.Serialize();
         var record = new MigrationRecord(
             Schema: _schemaName,
             Name: migrationName,
-            MigrationJson: emptyMigration.Serialize(),
+            MigrationJson: emptyMigrationJson,
+            MigrationChecksum: MigrationChecksum.ComputeSha256(emptyMigrationJson),
             CreatedAt: DateTimeOffset.UtcNow,
             UpdatedAt: DateTimeOffset.UtcNow,
             Parent: parent,
@@ -615,7 +648,23 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
             tempCol, upExpr, versionSchema, ct);
 
         // Backfill uses its own connections (outside the main connection)
-        await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, tempCol, upExpr, progress: BackfillProgress, ct: ct);
+        _logger.LogInformation(
+            "Backfill start for {Schema}.{Table} with batch size {BatchSize} and delay {DelayMs}ms",
+            _schemaName,
+            op.Table,
+            _backfillBatchSize,
+            _backfillDelayMs);
+        await PgBackfillBatcher.BackfillAsync(
+            _dataSource,
+            _schemaName,
+            op.Table,
+            tempCol,
+            upExpr,
+            batchSize: _backfillBatchSize,
+            batchDelay: TimeSpan.FromMilliseconds(_backfillDelayMs),
+            statementTimeoutMs: _statementTimeoutMs,
+            progress: BackfillProgress,
+            ct: ct);
 
         // Build version schema view
         var origCols = OriginalColumnExpressions(snapshot, op.Table);
@@ -729,7 +778,23 @@ public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
                 downExpression: op.Down, tempColumnAlias: tempAlias);
 
             // Backfill (uses its own connections)
-            await PgBackfillBatcher.BackfillAsync(_dataSource, _schemaName, op.Table, dupCol, upExpr, progress: BackfillProgress, ct: ct);
+            _logger.LogInformation(
+                "Backfill start for {Schema}.{Table} with batch size {BatchSize} and delay {DelayMs}ms",
+                _schemaName,
+                op.Table,
+                _backfillBatchSize,
+                _backfillDelayMs);
+            await PgBackfillBatcher.BackfillAsync(
+                _dataSource,
+                _schemaName,
+                op.Table,
+                dupCol,
+                upExpr,
+                batchSize: _backfillBatchSize,
+                batchDelay: TimeSpan.FromMilliseconds(_backfillDelayMs),
+                statementTimeoutMs: _statementTimeoutMs,
+                progress: BackfillProgress,
+                ct: ct);
 
             // Add unique index if requested
             if (op.Unique == true)

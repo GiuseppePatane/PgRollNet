@@ -22,6 +22,9 @@ All commands accept these options (passed before or after the command name):
 | `--schema` | `public` | Target user schema |
 | `--pgroll-schema` | `pgroll` | Internal pgroll state schema |
 | `--lock-timeout` | `500` | DDL lock timeout in milliseconds |
+| `--statement-timeout` | `0` | SQL statement timeout in milliseconds (`0` = PostgreSQL default) |
+| `--backfill-batch-size` | `1000` | Batch size for expand/contract backfills |
+| `--backfill-delay-ms` | `0` | Delay between backfill batches in milliseconds |
 | `--role` | — | PostgreSQL role to `SET` before executing DDL |
 | `--verbose` | `false` | Enable verbose logging |
 
@@ -123,7 +126,7 @@ pgroll-net init --connection "Host=localhost;Database=mydb;Username=postgres;Pas
 Start a migration from a JSON or YAML file. Executes the **Start** phase for every operation in the file and records the migration in `pgroll.migrations` with `done = false`.
 
 ```
-pgroll-net start <file> --connection <conn> [--schema <name>]
+pgroll-net start <file> --connection <conn> [--schema <name>] [--dry-run]
 ```
 
 | Argument | Description |
@@ -138,6 +141,8 @@ pgroll-net start migrations/002_add_email_verified.json \
 ```
 
 Only one migration can be active at a time. Running `start` while another migration is active returns an error.
+
+Use `--dry-run` to validate and describe the migration without executing it.
 
 ---
 
@@ -270,6 +275,8 @@ else
 fi
 ```
 
+Applied migrations are verified by checksum. Renaming an already applied file is safe. Editing the contents of an applied migration causes `pending` to fail.
+
 ---
 
 ## `pgroll-net migrate <directory>`
@@ -298,6 +305,8 @@ pgroll-net migrate ./migrations \
 ```
 
 **Note:** This command is designed for CI/CD pipelines where all migrations should be applied sequentially. It does not support the expand/contract multi-deployment pattern — use `start` + `complete` separately for zero-downtime workflows.
+
+Already applied migrations are verified by checksum before execution. If a migration file was edited after being applied, `migrate` fails fast.
 
 ---
 
@@ -361,6 +370,91 @@ pgroll-net latest --connection "Host=localhost;Database=mydb;Username=postgres;P
 ```
 
 Exits with code `1` if no migration has been applied yet.
+
+---
+
+## `pgroll-net doctor`
+
+Run operational preflight checks against a database and optionally verify that the applied migration history still matches local files.
+
+```
+pgroll-net doctor --connection <conn> [--migrations <dir>]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--migrations` | Optional directory of local migration files used to verify applied migration checksums |
+
+Checks include:
+
+- PostgreSQL minimum verified version
+- current user and target schema visibility
+- `CREATE` privilege on the target schema
+- presence of the pgroll state table
+- currently active migration
+- checksum drift between applied migrations and local files when `--migrations` is supplied
+
+**Example:**
+
+```bash
+pgroll-net doctor \
+  --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret" \
+  --migrations ./migrations
+```
+
+Exits with code `1` when issues are detected.
+
+---
+
+## `pgroll-net plan <file>`
+
+Render a preview of a migration without applying it. Useful for CI review, change management, or machine-readable inspection.
+
+```
+pgroll-net plan <file> [--format text|json] [--connection <conn>] [--schema <name>]
+```
+
+| Argument/Option | Description |
+|-----------------|-------------|
+| `<file>` | Path to the migration file |
+| `--format` | Output format: `text` or `json` |
+
+When a connection is provided, `plan` also performs online validation against the live schema and reports validation errors in the output.
+
+**Example:**
+
+```bash
+pgroll-net plan ./migrations/004_add_users_index.json --format json
+```
+
+---
+
+## `pgroll-net inspect-active`
+
+Print recovery-relevant details for the currently active migration.
+
+```
+pgroll-net inspect-active --connection <conn> [--json]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Emit JSON instead of text |
+
+The output includes:
+
+- active migration name
+- schema
+- migration checksum
+- parent migration
+- version schema name
+- operation list
+
+**Example:**
+
+```bash
+pgroll-net inspect-active --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+```
 
 ---
 

@@ -45,6 +45,7 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
             Schema: "public",
             Name: "test_migration",
             MigrationJson: """{"name":"test","operations":[]}""",
+            MigrationChecksum: null,
             CreatedAt: DateTimeOffset.UtcNow,
             UpdatedAt: DateTimeOffset.UtcNow,
             Parent: null,
@@ -63,7 +64,7 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task RecordCompleted_UpdatesDoneFlag()
     {
         var record = new PgRoll.Core.State.MigrationRecord(
-            "public", "m1", null,
+            "public", "m1", null, null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false);
 
         await _store.RecordStartedAsync(record);
@@ -80,11 +81,11 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task RecordStarted_WhenAnotherActiveMigrationExistsForSchema_Throws()
     {
         await _store.RecordStartedAsync(new PgRoll.Core.State.MigrationRecord(
-            "public", "m1", null,
+            "public", "m1", null, null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
 
         var act = async () => await _store.RecordStartedAsync(new PgRoll.Core.State.MigrationRecord(
-            "public", "m2", null,
+            "public", "m2", null, null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
 
         var ex = await act.Should().ThrowAsync<PostgresException>();
@@ -95,7 +96,7 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
     public async Task DeleteRecord_RemovesMigration()
     {
         var record = new PgRoll.Core.State.MigrationRecord(
-            "public", "m_delete", null,
+            "public", "m_delete", null, null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false);
 
         await _store.RecordStartedAsync(record);
@@ -108,11 +109,11 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
     [Fact]
     public async Task GetHistory_ReturnsAllMigrationsOrdered()
     {
-        await _store.RecordStartedAsync(new("public", "m1", null,
+        await _store.RecordStartedAsync(new("public", "m1", null, null,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
         await _store.RecordCompletedAsync("public", "m1");
 
-        await _store.RecordStartedAsync(new("public", "m2", null,
+        await _store.RecordStartedAsync(new("public", "m2", null, null,
             DateTimeOffset.UtcNow.AddSeconds(1), DateTimeOffset.UtcNow, "m1", false));
 
         var history = await _store.GetHistoryAsync("public");

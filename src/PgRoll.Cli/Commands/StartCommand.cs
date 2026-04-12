@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using PgRoll.Core.Models;
 using PgRoll.PostgreSQL;
 
@@ -15,8 +16,19 @@ public static class StartCommand
         cmd.AddOption(dryRunOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (dryRun, file, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
+        cmd.SetHandler(async (InvocationContext ctx) =>
         {
+            var dryRun = ctx.ParseResult.GetValueForOption(dryRunOpt);
+            var file = ctx.ParseResult.GetValueForArgument(fileArg);
+            var connection = ctx.ParseResult.GetValueForOption(g.Connection);
+            var schema = ctx.ParseResult.GetValueForOption(g.Schema)!;
+            var pgrollSchema = ctx.ParseResult.GetValueForOption(g.PgrollSchema)!;
+            var lockTimeout = ctx.ParseResult.GetValueForOption(g.LockTimeout);
+            var statementTimeout = ctx.ParseResult.GetValueForOption(g.StatementTimeout);
+            var backfillBatchSize = ctx.ParseResult.GetValueForOption(g.BackfillBatchSize);
+            var backfillDelayMs = ctx.ParseResult.GetValueForOption(g.BackfillDelayMs);
+            var role = ctx.ParseResult.GetValueForOption(g.Role);
+            var verbose = ctx.ParseResult.GetValueForOption(g.Verbose);
             var migration = await Migration.LoadAsync(file.FullName);
 
             if (dryRun)
@@ -30,7 +42,10 @@ public static class StartCommand
                 Console.WriteLine($"  [{i + 1}/{migration.Operations.Count}] {migration.Operations[i].Describe()}");
             Console.WriteLine();
 
-            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
+            foreach (var warning in MigrationDiagnostics.GetWarnings(migration).Distinct())
+                Console.WriteLine($"Warning: {warning}");
+
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, statementTimeout, backfillBatchSize, backfillDelayMs, role, verbose);
 
             long lastTotal = 0;
             string? lastTable = null;
@@ -38,7 +53,7 @@ public static class StartCommand
             {
                 lastTotal = p.TotalRowsUpdated;
                 lastTable = p.Table;
-                var line = $"  Backfilling {p.Table}: batch {p.BatchNumber}, {p.TotalRowsUpdated:N0} rows updated...";
+                var line = $"  Backfilling {p.Table}: batch {p.BatchNumber}, total {p.TotalRowsUpdated:N0} rows, elapsed {p.Elapsed.TotalSeconds:F1}s...";
                 Console.Write($"\r{Pad(line)}");
             });
 
@@ -52,7 +67,7 @@ public static class StartCommand
 
             Console.WriteLine($"✓ Migration '{migration.Name}' started. Run 'pgroll-net complete' to finalize.");
 
-        }, dryRunOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
+        });
 
         return cmd;
     }

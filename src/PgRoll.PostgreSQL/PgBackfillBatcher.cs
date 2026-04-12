@@ -7,8 +7,10 @@ public sealed record BackfillProgress(
     string Schema,
     string Table,
     int BatchNumber,
+    int BatchSize,
     long RowsUpdatedThisBatch,
-    long TotalRowsUpdated);
+    long TotalRowsUpdated,
+    TimeSpan Elapsed);
 
 public sealed class PgBackfillBatcher
 {
@@ -26,6 +28,7 @@ public sealed class PgBackfillBatcher
         string upExpression,
         int batchSize = 1000,
         TimeSpan batchDelay = default,
+        int statementTimeoutMs = 0,
         IProgress<BackfillProgress>? progress = null,
         CancellationToken ct = default)
     {
@@ -50,18 +53,31 @@ public sealed class PgBackfillBatcher
 
         long total = 0;
         int batchNumber = 0;
+        var startedAt = DateTime.UtcNow;
         while (true)
         {
             ct.ThrowIfCancellationRequested();
 
             await using var conn = await dataSource.OpenConnectionAsync(ct);
+            if (statementTimeoutMs > 0)
+            {
+                await using var timeoutCmd = new NpgsqlCommand($"SET statement_timeout = '{statementTimeoutMs}ms'", conn);
+                await timeoutCmd.ExecuteNonQueryAsync(ct);
+            }
             await using var cmd = new NpgsqlCommand(sql, conn);
             var updated = await cmd.ExecuteNonQueryAsync(ct);
             total += updated;
             batchNumber++;
 
             if (updated > 0)
-                progress?.Report(new BackfillProgress(schema, table, batchNumber, updated, total));
+                progress?.Report(new BackfillProgress(
+                    schema,
+                    table,
+                    batchNumber,
+                    batchSize,
+                    updated,
+                    total,
+                    DateTime.UtcNow - startedAt));
 
             if (updated == 0)
                 break;

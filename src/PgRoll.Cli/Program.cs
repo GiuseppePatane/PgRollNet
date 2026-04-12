@@ -13,6 +13,9 @@ rootCmd.AddGlobalOption(g.Connection);
 rootCmd.AddGlobalOption(g.Schema);
 rootCmd.AddGlobalOption(g.PgrollSchema);
 rootCmd.AddGlobalOption(g.LockTimeout);
+rootCmd.AddGlobalOption(g.StatementTimeout);
+rootCmd.AddGlobalOption(g.BackfillBatchSize);
+rootCmd.AddGlobalOption(g.BackfillDelayMs);
 rootCmd.AddGlobalOption(g.Role);
 rootCmd.AddGlobalOption(g.Verbose);
 
@@ -28,6 +31,9 @@ rootCmd.AddCommand(PullCommand.Build(g));
 rootCmd.AddCommand(EfCoreCommand.Build());
 rootCmd.AddCommand(BaselineCommand.Build(g));
 rootCmd.AddCommand(LatestCommand.Build(g));
+rootCmd.AddCommand(DoctorCommand.Build(g));
+rootCmd.AddCommand(PlanCommand.Build(g));
+rootCmd.AddCommand(InspectActiveCommand.Build(g));
 rootCmd.AddCommand(NewCommand.Build());
 
 var parser = new CommandLineBuilder(rootCmd)

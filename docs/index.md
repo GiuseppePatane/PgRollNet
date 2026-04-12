@@ -32,6 +32,9 @@ features:
   - title: CD-Ready
     details: pgroll-net pending exits with code 1 when migrations are pending — plug it directly into GitHub Actions, Azure DevOps, or Kubernetes init containers.
 
+  - title: Operational Guardrails
+    details: `doctor`, `plan`, `inspect-active`, checksum validation, and batched backfill tuning make production rollouts easier to reason about and safer to recover.
+
   - title: .NET Native
     details: Built on .NET 10 with Npgsql. Available as a dotnet global tool (pgroll-net) and as NuGet libraries (PgRoll.PostgreSQL, PgRoll.EntityFrameworkCore).
 
@@ -69,3 +72,5 @@ pgroll uses the **expand/contract** pattern. Every schema change has three phase
 | **Rollback** | New structure removed. Database restored to pre-Start state. |
 
 Between Start and Complete both old and new application versions run against the same database — each reading from their own [version schema](/architecture#version-schemas).
+
+For production workflows, use `doctor` as a preflight check, `plan` for reviewable execution previews, and `inspect-active` when you need to understand or recover an in-progress migration.

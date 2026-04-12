@@ -78,7 +78,9 @@ public class CliEndToEndTests(PostgresFixture postgres) : IAsyncLifetime
         await File.WriteAllTextAsync(file, """
             {
               "name": "0001_real_name",
-              "operations": []
+              "operations": [
+                { "type": "create_table", "table": "cli_pending_table", "columns": [{ "name": "id", "type": "serial" }] }
+              ]
             }
             """);
 
@@ -90,6 +92,38 @@ public class CliEndToEndTests(PostgresFixture postgres) : IAsyncLifetime
 
         result.ExitCode.Should().Be(0, $"stdout: {result.StdOut}\nstderr: {result.StdErr}");
         result.StdOut.Should().Contain("Up to date. No pending migrations.");
+    }
+
+    [Fact]
+    public async Task Pending_FailsWhenAppliedMigrationChecksumDiffers()
+    {
+        var migration = Migration.Deserialize("""
+            {
+              "name": "0001_checksum_guard",
+              "operations": [
+                { "type": "create_table", "table": "checksum_guard_table", "columns": [{ "name": "id", "type": "serial" }] }
+              ]
+            }
+            """);
+        await _executor.StartAsync(migration);
+        await _executor.CompleteAsync();
+
+        var file = Path.Combine(_tempDir, "checksum_guard.json");
+        await File.WriteAllTextAsync(file, """
+            {
+              "name": "0001_checksum_guard",
+              "operations": []
+            }
+            """);
+
+        var result = await RunCliAsync(
+            "pending",
+            _tempDir,
+            "--connection",
+            _connectionString);
+
+        result.ExitCode.Should().Be(1, $"stdout: {result.StdOut}\nstderr: {result.StdErr}");
+        result.StdErr.Should().Contain("Checksum mismatch for applied migration(s): 0001_checksum_guard");
     }
 
     [Fact]
@@ -147,6 +181,56 @@ public class CliEndToEndTests(PostgresFixture postgres) : IAsyncLifetime
         result.StdOut.Should().Contain("pgroll initialized successfully.");
 
         await DatabaseFactory.DropDatabaseAsync(postgres.ConnectionString, dbName);
+    }
+
+    [Fact]
+    public async Task Plan_WithJsonFormat_EmitsWarningsAndOperations()
+    {
+        var file = Path.Combine(_tempDir, "plan.json");
+        await File.WriteAllTextAsync(file, """
+            {
+              "name": "0003_plan",
+              "operations": [
+                {
+                  "type": "raw_sql",
+                  "sql": "select 1"
+                }
+              ]
+            }
+            """);
+
+        var result = await RunCliAsync("plan", file, "--format", "json");
+
+        result.ExitCode.Should().Be(0, $"stdout: {result.StdOut}\nstderr: {result.StdErr}");
+        result.StdOut.Should().Contain("\"migration\": \"0003_plan\"");
+        result.StdOut.Should().Contain("\"type\": \"raw_sql\"");
+        result.StdOut.Should().Contain("raw_sql");
+    }
+
+    [Fact]
+    public async Task InspectActive_WithJson_ReportsActiveMigrationDetails()
+    {
+        var migration = Migration.Deserialize("""
+            {
+              "name": "0004_inspect",
+              "operations": [
+                { "type": "create_table", "table": "inspect_active_table", "columns": [{ "name": "id", "type": "serial" }] }
+              ]
+            }
+            """);
+        await _executor.StartAsync(migration);
+
+        var result = await RunCliAsync(
+            "inspect-active",
+            "--json",
+            "--connection",
+            _connectionString);
+
+        result.ExitCode.Should().Be(0, $"stdout: {result.StdOut}\nstderr: {result.StdErr}");
+        result.StdOut.Should().Contain("\"Name\": \"0004_inspect\"");
+        result.StdOut.Should().Contain("\"MigrationChecksum\":");
+        result.StdOut.Should().Contain("\"versionSchema\": \"public_0004_inspect\"");
+        result.StdErr.Should().BeEmpty();
     }
 
     private static async Task<CliResult> RunCliAsync(params string[] args)

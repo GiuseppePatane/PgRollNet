@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using PgRoll.Core.Models;
 using PgRoll.PostgreSQL;
 
@@ -15,8 +16,13 @@ public static class ValidateCommand
         cmd.AddOption(offlineOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (offline, file, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
+        cmd.SetHandler(async (InvocationContext ctx) =>
         {
+            var offline = ctx.ParseResult.GetValueForOption(offlineOpt);
+            var file = ctx.ParseResult.GetValueForArgument(fileArg);
+            var connection = ctx.ParseResult.GetValueForOption(g.Connection);
+            var schema = ctx.ParseResult.GetValueForOption(g.Schema)!;
+            var verbose = ctx.ParseResult.GetValueForOption(g.Verbose);
             if (!file.Exists)
             {
                 await Console.Error.WriteLineAsync($"error: file not found: {file.FullName}");
@@ -47,6 +53,9 @@ public static class ValidateCommand
 
             if (offline)
             {
+                foreach (var warning in MigrationDiagnostics.GetWarnings(migration).Distinct())
+                    Console.WriteLine($"Warning: {warning}");
+
                 // Structural validation only — no DB required
                 foreach (var op in migration.Operations)
                 {
@@ -84,7 +93,7 @@ public static class ValidateCommand
                     Console.WriteLine(err);
                 Environment.Exit(1);
             }
-        }, offlineOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
+        });
 
         return cmd;
     }

@@ -25,21 +25,22 @@ Every migration has three phases:
 | [EF Core Integration](efcore.md) | Convert EF Core migrations and use the .NET library |
 | [CD Integration](cd-integration.md) | GitHub Actions, Azure DevOps, Kubernetes — pipeline examples |
 | [Architecture](architecture.md) | Internals: expand/contract, version schemas, backfill, state storage |
+| [Production Readiness](production-readiness.md) | Verified matrix, operational checks, rollout expectations |
 
 ## Quick Example
 
 ```bash
 # 1. Initialize pgroll in your database
-pgroll init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
+pgroll-net init --connection "Host=localhost;Database=mydb;Username=postgres;Password=secret"
 
 # 2. Start a migration
-pgroll start 001_add_email_verified.json --connection "..."
+pgroll-net start 001_add_email_verified.json --connection "..."
 
 # 3. Deploy your new application version
 # (old version still works — both schemas coexist)
 
 # 4. Complete the migration
-pgroll complete --connection "..."
+pgroll-net complete --connection "..."
 ```
 
 ```json
@@ -65,7 +66,7 @@ pgroll complete --connection "..."
 Convert your existing EF Core migrations to pgroll in a single command:
 
 ```bash
-pgroll efcore convert \
+pgroll-net efcore convert \
   --assembly bin/Release/net8.0/MyApp.Migrations.dll \
   --output pgroll-migrations
 ```
@@ -77,5 +78,5 @@ See [EF Core Integration](efcore.md) for the full adoption guide.
 - .NET 10, PostgreSQL 14+ (minimum verified version: PostgreSQL 14; CI matrix covers 14, 15, 16, and 17)
 - `PgRoll.Core` — database-agnostic operation model
 - `PgRoll.PostgreSQL` — PostgreSQL implementation (Npgsql)
-- `PgRoll.Cli` — dotnet tool (`pgroll`)
+- `PgRoll.Cli` — dotnet tool (`pgroll-net`)
 - `PgRoll.EntityFrameworkCore` — EF Core converter library

@@ -45,7 +45,7 @@ public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposabl
     public async Task<MigrationRecord?> GetActiveMigrationAsync(string schema, CancellationToken ct = default)
     {
         var sql = $"""
-            SELECT schema, name, migration::text, created_at, updated_at, parent, done
+            SELECT schema, name, migration::text, migration_checksum, created_at, updated_at, parent, done
             FROM {TableRef}
             WHERE schema = $1 AND done = FALSE
             ORDER BY created_at DESC
@@ -66,8 +66,8 @@ public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposabl
     public async Task RecordStartedAsync(MigrationRecord record, CancellationToken ct = default)
     {
         var sql = $"""
-            INSERT INTO {TableRef} (schema, name, migration, parent, done)
-            VALUES ($1, $2, $3::jsonb, $4, FALSE)
+            INSERT INTO {TableRef} (schema, name, migration, migration_checksum, parent, done)
+            VALUES ($1, $2, $3::jsonb, $4, $5, FALSE)
             """;
 
         await using var conn = await _dataSource.OpenConnectionAsync(ct);
@@ -75,6 +75,7 @@ public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposabl
         cmd.Parameters.AddWithValue(record.Schema);
         cmd.Parameters.AddWithValue(record.Name);
         cmd.Parameters.AddWithValue(record.MigrationJson is null ? DBNull.Value : record.MigrationJson);
+        cmd.Parameters.AddWithValue(record.MigrationChecksum is null ? DBNull.Value : record.MigrationChecksum);
         cmd.Parameters.AddWithValue(record.Parent is null ? DBNull.Value : record.Parent);
 
         await cmd.ExecuteNonQueryAsync(ct);
@@ -117,7 +118,7 @@ public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposabl
     public async Task<IReadOnlyList<MigrationRecord>> GetHistoryAsync(string schema, CancellationToken ct = default)
     {
         var sql = $"""
-            SELECT schema, name, migration::text, created_at, updated_at, parent, done
+            SELECT schema, name, migration::text, migration_checksum, created_at, updated_at, parent, done
             FROM {TableRef}
             WHERE schema = $1
             ORDER BY created_at ASC
@@ -139,10 +140,11 @@ public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposabl
         Schema: reader.GetString(0),
         Name: reader.GetString(1),
         MigrationJson: reader.IsDBNull(2) ? null : reader.GetString(2),
-        CreatedAt: reader.GetFieldValue<DateTimeOffset>(3),
-        UpdatedAt: reader.GetFieldValue<DateTimeOffset>(4),
-        Parent: reader.IsDBNull(5) ? null : reader.GetString(5),
-        Done: reader.GetBoolean(6)
+        MigrationChecksum: reader.IsDBNull(3) ? null : reader.GetString(3),
+        CreatedAt: reader.GetFieldValue<DateTimeOffset>(4),
+        UpdatedAt: reader.GetFieldValue<DateTimeOffset>(5),
+        Parent: reader.IsDBNull(6) ? null : reader.GetString(6),
+        Done: reader.GetBoolean(7)
     );
 
     private static string ReadEmbeddedSql(string fileName)
