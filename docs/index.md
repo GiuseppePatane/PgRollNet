@@ -33,10 +33,10 @@ features:
     details: pgroll-net pending exits with code 1 when migrations are pending — plug it directly into GitHub Actions, Azure DevOps, or Kubernetes init containers.
 
   - title: Operational Guardrails
-    details: `doctor`, `plan`, `inspect-active`, checksum validation, and batched backfill tuning make production rollouts easier to reason about and safer to recover.
+    details: "`doctor`, `plan`, `inspect-active`, checksum validation, and batched backfill tuning make production rollouts easier to reason about and safer to recover."
 
   - title: .NET Native
-    details: Built on .NET 10 with Npgsql. Available as a dotnet global tool (pgroll-net) and as NuGet libraries (PgRoll.PostgreSQL, PgRoll.EntityFrameworkCore).
+    details: Built on .NET 10 with Npgsql. Available as a .NET global tool package (`PgRoll.Cli`, command `pgroll-net`) and as NuGet libraries (`PgRoll.PostgreSQL`, `PgRoll.EntityFrameworkCore`).
 
   - title: Verified Matrix
     details: CI validates the full build, test, packaging, and packaged-tool workflow against PostgreSQL 14, 15, 16, and 17. The minimum verified version is PostgreSQL 14.

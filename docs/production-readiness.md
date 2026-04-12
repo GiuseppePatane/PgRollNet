@@ -55,5 +55,5 @@ Before publishing a release tag:
 - Use `--verbose` in staging and production rollout jobs to retain an execution trace.
 - Tune `--statement-timeout`, `--backfill-batch-size`, and `--backfill-delay-ms` for large expand/contract migrations.
 - Prefer running migrations with a dedicated PostgreSQL role scoped to the target schema.
-- Treat `start` and `complete` as separate deployment stages; do not collapse them unless your rollout strategy is designed for it.
+- Treat `start` and `complete` as separate deployment stages; do not collapse them unless your deployment strategy is designed for it.
 - Keep migration files immutable once applied. Renaming a file is safe, but changing migration contents is rejected by checksum validation and changing `name` breaks history continuity.

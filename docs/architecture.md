@@ -13,7 +13,7 @@ pgroll.NET is organized into four projects:
 ```
 PgRoll.Core          — database-agnostic abstractions (operations, models, schema, errors)
 PgRoll.PostgreSQL    — PostgreSQL implementation (executor, state store, schema reader)
-PgRoll.Cli           — dotnet tool CLI (System.CommandLine)
+PgRoll.Cli           — .NET tool CLI (`pgroll-net`, built on System.CommandLine)
 PgRoll.EntityFrameworkCore — EF Core → pgroll converter library
 ```
 
@@ -29,7 +29,7 @@ Zero-downtime schema changes follow the [expand/contract](https://martinfowler.c
 Deploy v1 (old code)
    │
    ▼
-pgroll start migration.json       ← Expand phase
+pgroll-net start migration.json   ← Expand phase
    │  - Add new column/structure
    │  - Keep old column/structure
    │  - Set up trigger for dual-write
@@ -38,7 +38,7 @@ pgroll start migration.json       ← Expand phase
 Deploy v2 (new code, reads new column)
    │
    ▼
-pgroll complete                    ← Contract phase
+pgroll-net complete               ← Contract phase
    │  - Drop old column/structure
    │  - Drop trigger and version schema
    ▼
@@ -191,7 +191,7 @@ PgRoll.EntityFrameworkCore ──────┘
 
 ## Assembly Load Isolation (EF Core CLI)
 
-The `pgroll efcore convert` command loads user assemblies in an isolated `AssemblyLoadContext` (collectible). This prevents version conflicts between the host process's own EF Core reference (9.x) and the user's assembly (which may use 7.x or 8.x).
+The `pgroll-net efcore convert` command loads user assemblies in an isolated `AssemblyLoadContext` (collectible). This prevents version conflicts between the host process's own EF Core reference (9.x) and the user's assembly (which may use 7.x or 8.x).
 
 Dependency resolution order for the isolated context:
 

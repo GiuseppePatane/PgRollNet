@@ -15,7 +15,7 @@ The CI-verified support matrix currently covers PostgreSQL 14, 15, 16, and 17. T
 
 ## Installation
 
-### As a dotnet global tool
+### As a .NET global tool
 
 ```bash
 dotnet tool install --global PgRoll.Cli

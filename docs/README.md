@@ -21,7 +21,7 @@ Every migration has three phases:
 | [Getting Started](getting-started.md) | Install, initialize, and run your first migration |
 | [CLI Reference](cli-reference.md) | All CLI commands and options |
 | [Migration Format](migration-format.md) | JSON file format and column definition schema |
-| [Operations](operations.md) | All 13 supported operations with examples |
+| [Operations](operations.md) | All 24 supported operations with examples |
 | [EF Core Integration](efcore.md) | Convert EF Core migrations and use the .NET library |
 | [CD Integration](cd-integration.md) | GitHub Actions, Azure DevOps, Kubernetes — pipeline examples |
 | [Architecture](architecture.md) | Internals: expand/contract, version schemas, backfill, state storage |
@@ -63,7 +63,7 @@ pgroll-net complete --connection "..."
 
 ## EF Core Users
 
-Convert your existing EF Core migrations to pgroll in a single command:
+Convert your existing EF Core migrations to pgroll JSON in a single command:
 
 ```bash
 pgroll-net efcore convert \
@@ -78,5 +78,5 @@ See [EF Core Integration](efcore.md) for the full adoption guide.
 - .NET 10, PostgreSQL 14+ (minimum verified version: PostgreSQL 14; CI matrix covers 14, 15, 16, and 17)
 - `PgRoll.Core` — database-agnostic operation model
 - `PgRoll.PostgreSQL` — PostgreSQL implementation (Npgsql)
-- `PgRoll.Cli` — dotnet tool (`pgroll-net`)
+- `PgRoll.Cli` — .NET global tool package (`pgroll-net`)
 - `PgRoll.EntityFrameworkCore` — EF Core converter library

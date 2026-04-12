@@ -11,6 +11,7 @@ jobs:
     env:
       PGROLL_TEST_POSTGRES_IMAGE: postgres:17-alpine
       DOTNET_CLI_HOME: ${{ github.workspace }}/.dotnet
+      PACKAGE_VERSION: ${{ github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,23 +24,26 @@ jobs:
       - name: Restore
         run: dotnet restore PgRoll.slnx
 
+      - name: Normalize package version from tag
+        run: echo "PACKAGE_VERSION=${PACKAGE_VERSION#v}" >> $GITHUB_ENV
+
       - name: Build
-        run: dotnet build PgRoll.slnx --no-restore --configuration Release
+        run: dotnet build PgRoll.slnx --no-restore --configuration Release /p:Version=$PACKAGE_VERSION
 
       - name: Test
         run: dotnet test PgRoll.slnx --no-build --configuration Release --verbosity normal
 
       - name: Pack
         run: |
-          dotnet pack src/PgRoll.Core/ --no-build --configuration Release --output ./nupkgs
-          dotnet pack src/PgRoll.PostgreSQL/ --no-build --configuration Release --output ./nupkgs
-          dotnet pack src/PgRoll.EntityFrameworkCore/ --no-build --configuration Release --output ./nupkgs
-          dotnet pack src/PgRoll.Cli/ --no-build --configuration Release --output ./nupkgs
+          dotnet pack src/PgRoll.Core/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.PostgreSQL/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.EntityFrameworkCore/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
+          dotnet pack src/PgRoll.Cli/ --no-build --configuration Release --output ./nupkgs /p:Version=$PACKAGE_VERSION
 
       - name: Smoke test packaged CLI
         run: |
           mkdir -p ./.tools
-          dotnet tool install --tool-path ./.tools --add-source ./nupkgs --ignore-failed-sources PgRoll.Cli --version 1.0.0
+          dotnet tool install --tool-path ./.tools --add-source ./nupkgs --ignore-failed-sources PgRoll.Cli --version $PACKAGE_VERSION
           ./.tools/pgroll-net --help
           ./.tools/pgroll-net validate --help
           ./.tools/pgroll-net efcore convert --help

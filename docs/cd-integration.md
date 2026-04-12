@@ -1,12 +1,12 @@
 ---
 title: CD Integration
-description: Integrate pgroll into GitHub Actions, Azure DevOps and Kubernetes pipelines with pgroll pending and migrate.
+description: Integrate pgroll.NET into GitHub Actions, Azure DevOps, and Kubernetes pipelines with `pgroll-net pending` and `pgroll-net migrate`.
 outline: deep
 ---
 
 # CD Integration
 
-pgroll is designed to fit into standard CD pipelines. The key tool is `pgroll pending`, which returns exit code `1` when there are migrations to apply, letting the pipeline decide whether to run the migration step at all.
+pgroll.NET is designed to fit into standard CD pipelines. The key tool is `pgroll-net pending`, which returns exit code `1` when there are migrations to apply, letting the pipeline decide whether to run the migration step at all.
 
 ## Exit Codes Reference
 
@@ -23,19 +23,19 @@ pgroll is designed to fit into standard CD pipelines. The key tool is `pgroll pe
 
 ## Strategies
 
-### Strategy A — Atomico (semplice, consigliato per iniziare)
+### Strategy A — Atomic (simple, recommended to start with)
 
-Applica `start + complete` in sequenza prima del deploy. Non sfrutta l'expand/contract ma è più sicuro del DDL nudo (usa `CREATE INDEX CONCURRENTLY`, `NOT VALID/VALIDATE`, ecc.).
+Apply `start + complete` in sequence before deployment. It does not use the full expand/contract pattern, but it is safer than raw DDL because it still relies on safer PostgreSQL primitives such as `CREATE INDEX CONCURRENTLY` and `NOT VALID/VALIDATE`.
 
 ```
 check pending → migrate (start+complete) → deploy app
 ```
 
-Se non ci sono migration pending, il deploy si limita al rollout dell'app.
+If there are no pending migrations, the deployment only rolls out the application.
 
-### Strategy B — Expand/Contract (zero-downtime vero)
+### Strategy B — Expand/Contract (true zero-downtime)
 
-Richiede una vera infrastruttura blue-green (due slot applicativi, load balancer con health check):
+This requires real blue-green infrastructure with two application slots and a load balancer with health checks:
 
 ```
 start migration → deploy new app version → health check OK → complete
@@ -45,9 +45,9 @@ start migration → deploy new app version → health check OK → complete
 
 ---
 
-## Esempi
+## Examples
 
-### GitHub Actions — Strategia A
+### GitHub Actions — Strategy A
 
 ```yaml
 # .github/workflows/deploy.yml
@@ -60,6 +60,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     env:
       DB_CONN: ${{ secrets.DB_CONNECTION }}
 
@@ -70,16 +73,24 @@ jobs:
         with:
           dotnet-version: '10.x'
 
-      - name: Install pgroll
-        run: dotnet tool install -g pgroll
+      - name: Install pgroll-net
+        run: dotnet tool install -g PgRoll.Cli
 
-      - name: Init pgroll (idempotente)
-        run: pgroll init --connection "$DB_CONN"
+      - name: Guard against active migration
+        run: |
+          STATUS=$(pgroll-net status --connection "$DB_CONN")
+          if echo "$STATUS" | grep -q "Active migration"; then
+            echo "ERROR: a migration is already active. Complete or rollback it first."
+            exit 2
+          fi
+
+      - name: Initialize pgroll state (idempotent)
+        run: pgroll-net init --connection "$DB_CONN"
 
       - name: Check pending migrations
         id: pending
         run: |
-          if pgroll pending ./migrations --connection "$DB_CONN"; then
+          if pgroll-net pending ./migrations --connection "$DB_CONN"; then
             echo "has_pending=false" >> $GITHUB_OUTPUT
           else
             echo "has_pending=true" >> $GITHUB_OUTPUT
@@ -87,37 +98,48 @@ jobs:
 
       - name: Apply migrations
         if: steps.pending.outputs.has_pending == 'true'
-        run: pgroll migrate ./migrations --connection "$DB_CONN"
+        run: pgroll-net migrate ./migrations --connection "$DB_CONN"
 
       - name: Deploy application
         run: |
           # kubectl set image deployment/myapp myapp=myrepo/myapp:${{ github.sha }}
-          # oppure: helm upgrade myapp ./chart --set image.tag=${{ github.sha }}
+          # or: helm upgrade myapp ./chart --set image.tag=${{ github.sha }}
           kubectl rollout status deployment/myapp --timeout=5m
 ```
 
-### GitHub Actions — Strategia B (Expand/Contract)
+### GitHub Actions — Strategy B (Expand/Contract)
 
 ```yaml
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     env:
       DB_CONN: ${{ secrets.DB_CONNECTION }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pgroll
-        run: dotnet tool install -g pgroll
+      - name: Install pgroll-net
+        run: dotnet tool install -g PgRoll.Cli
 
-      - name: Init pgroll
-        run: pgroll init --connection "$DB_CONN"
+      - name: Guard against active migration
+        run: |
+          STATUS=$(pgroll-net status --connection "$DB_CONN")
+          if echo "$STATUS" | grep -q "Active migration"; then
+            echo "ERROR: a migration is already active. Complete or rollback it first."
+            exit 2
+          fi
+
+      - name: Initialize pgroll state
+        run: pgroll-net init --connection "$DB_CONN"
 
       - name: Check pending migrations
         id: pending
         run: |
-          if pgroll pending ./migrations --connection "$DB_CONN"; then
+          if pgroll-net pending ./migrations --connection "$DB_CONN"; then
             echo "has_pending=false" >> $GITHUB_OUTPUT
           else
             echo "has_pending=true" >> $GITHUB_OUTPUT
@@ -130,10 +152,10 @@ jobs:
         run: |
           for f in $(ls ./migrations/*.json | sort); do
             name=$(basename "$f" .json)
-            if ! pgroll pending ./migrations --connection "$DB_CONN" | grep -q "$name"; then
+            if ! pgroll-net pending ./migrations --connection "$DB_CONN" | grep -q "$name"; then
               continue  # already applied
             fi
-            pgroll start "$f" --connection "$DB_CONN"
+            pgroll-net start "$f" --connection "$DB_CONN"
           done
 
       # ── Deploy new app version ───────────────────────────────────────────────
@@ -145,14 +167,14 @@ jobs:
 
       - name: Complete migrations
         if: steps.pending.outputs.has_pending == 'true' && success()
-        run: pgroll complete --connection "$DB_CONN"
+        run: pgroll-net complete --connection "$DB_CONN"
 
       - name: Rollback migrations on failure
         if: steps.pending.outputs.has_pending == 'true' && failure()
         run: |
-          STATUS=$(pgroll status --connection "$DB_CONN")
+          STATUS=$(pgroll-net status --connection "$DB_CONN")
           if echo "$STATUS" | grep -q "Active migration"; then
-            pgroll rollback --connection "$DB_CONN"
+            pgroll-net rollback --connection "$DB_CONN"
           fi
 ```
 
@@ -177,21 +199,29 @@ stages:
             inputs:
               version: '10.x'
 
-          - script: dotnet tool install -g pgroll
-            displayName: 'Install pgroll'
-
-          - script: pgroll init --connection "$(DB_CONN)"
-            displayName: 'Init pgroll'
+          - script: dotnet tool install -g PgRoll.Cli
+            displayName: 'Install pgroll-net'
 
           - script: |
-              pgroll pending ./migrations --connection "$(DB_CONN)"
+              STATUS=$(pgroll-net status --connection "$(DB_CONN)")
+              if echo "$STATUS" | grep -q "Active migration"; then
+                echo "ERROR: a migration is already active. Complete or rollback it first."
+                exit 2
+              fi
+            displayName: 'Guard against active migration'
+
+          - script: pgroll-net init --connection "$(DB_CONN)"
+            displayName: 'Initialize pgroll state'
+
+          - script: |
+              pgroll-net pending ./migrations --connection "$(DB_CONN)"
               echo "##vso[task.setvariable variable=hasPending;isOutput=true]$?"
             name: checkPending
             displayName: 'Check pending migrations'
             # Exit code 1 is expected when there are pending migrations — don't fail the step
             continueOnError: true
 
-          - script: pgroll migrate ./migrations --connection "$(DB_CONN)"
+          - script: pgroll-net migrate ./migrations --connection "$(DB_CONN)"
             displayName: 'Apply migrations'
             condition: eq(variables['checkPending.hasPending'], '1')
 
@@ -214,7 +244,7 @@ stages:
 
 ### Kubernetes Init Container
 
-Per pipeline Kubernetes-native, l'init container applica le migration prima che il pod principale parta.
+For Kubernetes-native pipelines, the init container applies migrations before the main pod starts.
 
 ```yaml
 # deployment.yaml
@@ -231,11 +261,16 @@ spec:
             - -c
             - |
               set -e
-              dotnet tool install -g pgroll
+              dotnet tool install -g PgRoll.Cli
               export PATH="$PATH:$HOME/.dotnet/tools"
-              pgroll init --connection "$DB_CONN"
-              if ! pgroll pending /migrations --connection "$DB_CONN"; then
-                pgroll migrate /migrations --connection "$DB_CONN"
+              STATUS=$(pgroll-net status --connection "$DB_CONN")
+              if echo "$STATUS" | grep -q "Active migration"; then
+                echo "ERROR: a migration is already active. Complete or rollback it first."
+                exit 2
+              fi
+              pgroll-net init --connection "$DB_CONN"
+              if ! pgroll-net pending /migrations --connection "$DB_CONN"; then
+                pgroll-net migrate /migrations --connection "$DB_CONN"
               fi
           env:
             - name: DB_CONN
@@ -255,37 +290,37 @@ spec:
       volumes:
         - name: migrations
           configMap:
-            name: pgroll-migrations  # oppure un PVC, oppure baked nell'immagine
+            name: pgroll-migrations  # or a PVC, or baked into the image
 ```
 
 ---
 
-## Pattern Consigliati
+## Recommended Patterns
 
-### Bloccare il deploy se c'è già una migration attiva
+### Block deployment if a migration is already active
 
 ```bash
-STATUS=$(pgroll status --connection "$DB_CONN")
+STATUS=$(pgroll-net status --connection "$DB_CONN")
 if echo "$STATUS" | grep -q "Active migration"; then
   echo "ERROR: a migration is already active. Complete or rollback it first."
   exit 2
 fi
 ```
 
-### Validare le migration in CI prima del merge
+### Validate migrations in CI before merge
 
 ```yaml
-# Nel job di CI (su ogni PR)
+# In the CI job (on every PR)
 - name: Validate migrations
   run: |
     for f in ./migrations/*.json; do
-      pgroll validate "$f" --connection "$DB_CONN_CI"
+      pgroll-net validate "$f" --connection "$DB_CONN_CI"
     done
 ```
 
-### Naming convention per ordinamento corretto
+### Naming convention for correct ordering
 
-Usa prefissi timestamp o numerici per garantire che `pgroll pending` e `pgroll migrate` processino i file nell'ordine giusto:
+Use timestamp or numeric prefixes to ensure `pgroll-net pending` and `pgroll-net migrate` process files in the correct order:
 
 ```
 migrations/
@@ -296,10 +331,10 @@ migrations/
 
 ---
 
-## Cosa non automatizzare
+## What Not To Automate
 
-| Azione | Perché |
+| Action | Why |
 |--------|--------|
-| `pgroll complete` immediatamente dopo `start` | Annulla il beneficio del expand/contract. Aspetta che il deploy e i health check siano OK. |
-| `pgroll rollback` automatico dopo `complete` | Impossibile: dopo `complete` non c'è rollback pgroll, serve una migration inversa. |
-| Applicare migration su ambienti condivisi senza lock | Se più pipeline girano in parallelo entrambe potrebbero tentare `start` contemporaneamente. Usa `pgroll status` come guard. |
+| `pgroll-net complete` immediately after `start` | This cancels the benefit of expand/contract. Wait until deployment and health checks are confirmed OK. |
+| Automatic `pgroll-net rollback` after `complete` | This is not possible. After `complete`, pgroll rollback is no longer available; you need a new reverse migration. |
+| Applying migrations to shared environments without a lock guard | If multiple pipelines run in parallel, both may try `start` at the same time. Use `pgroll-net status` as a guard. |
