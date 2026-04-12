@@ -8,8 +8,8 @@ namespace PgRoll.PostgreSQL.Tests;
 
 /// <summary>
 /// Integration tests for the pending-migration detection logic used by <c>pgroll pending</c>.
-/// Tests use <see cref="PgMigrationExecutor.GetHistoryAsync"/> directly, replicating the same
-/// set-comparison logic as PendingCommand without going through the CLI layer.
+/// Tests use <see cref="PgMigrationExecutor.GetHistoryAsync"/> directly, mirroring the matching
+/// semantics used by the CLI without invoking command parsing.
 /// </summary>
 [Collection("Postgres")]
 public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
@@ -33,14 +33,15 @@ public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    /// Mirrors the set-comparison in PendingCommand: file base-name vs applied migration names.
+    /// Mirrors the set-comparison in PendingCommand: parsed migration names vs applied migration names.
     private static IReadOnlyList<string> DetectPending(
-        IEnumerable<string> fileNames,
+        IEnumerable<(string FileName, string MigrationName)> files,
         IReadOnlyList<MigrationRecord> history)
     {
         var applied = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
-        return fileNames
-            .Where(n => !applied.Contains(Path.GetFileNameWithoutExtension(n)))
+        return files
+            .Where(f => !applied.Contains(f.MigrationName))
+            .Select(f => f.FileName)
             .ToList();
     }
 
@@ -111,7 +112,11 @@ public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
     {
         var history = await _executor.GetHistoryAsync();
 
-        var files = new[] { "001_create_users.json", "002_add_email.json" };
+        var files = new[]
+        {
+            ("001_create_users.json", "001_create_users"),
+            ("002_add_email.json", "002_add_email")
+        };
         var pending = DetectPending(files, history);
 
         pending.Should().HaveCount(2);
@@ -136,7 +141,7 @@ public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
 
         var history = await _executor.GetHistoryAsync();
         var pending = DetectPending(
-            ["001_create_pend_users.json", "002_add_pend_email.json"],
+            [("001_create_pend_users.json", "001_create_pend_users"), ("002_add_pend_email.json", "002_add_pend_email")],
             history);
 
         pending.Should().BeEmpty();
@@ -153,7 +158,7 @@ public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
 
         var history = await _executor.GetHistoryAsync();
         var pending = DetectPending(
-            ["001_create_orders.json", "002_add_status.json", "003_add_index.json"],
+            [("001_create_orders.json", "001_create_orders"), ("002_add_status.json", "002_add_status"), ("003_add_index.json", "003_add_index")],
             history);
 
         pending.Should().HaveCount(2);
@@ -174,10 +179,27 @@ public class PendingMigrationsTests(PostgresFixture postgres) : IAsyncLifetime
         var history = await _executor.GetHistoryAsync();
 
         // Wrong case → still pending (comparison is ordinal / case-sensitive)
-        DetectPending(["mymigration.json"], history).Should().HaveCount(1);
+        DetectPending([("mymigration.json", "mymigration")], history).Should().HaveCount(1);
 
         // Correct case → not pending
-        DetectPending(["MyMigration.json"], history).Should().BeEmpty();
+        DetectPending([("MyMigration.json", "MyMigration")], history).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PendingLogic_UsesMigrationName_NotFileName()
+    {
+        var m = Migration.Deserialize("""
+            {"name":"2026_real_name","operations":[{"type":"create_table","table":"real_name_tbl","columns":[{"name":"id","type":"serial"}]}]}
+            """);
+        await _executor.StartAsync(m);
+        await _executor.CompleteAsync();
+
+        var history = await _executor.GetHistoryAsync();
+        var pending = DetectPending(
+            [("001_renamed_file.json", "2026_real_name"), ("002_other.json", "002_other")],
+            history);
+
+        pending.Should().ContainSingle().Which.Should().Be("002_other.json");
     }
 
     [Fact]

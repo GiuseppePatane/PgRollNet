@@ -6,6 +6,7 @@
   <ItemGroup Label="Core">
     <PackageVersion Include="Npgsql" Version="9.0.3" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.3" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.3" />
     <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.3" />
     <PackageVersion Include="YamlDotNet" Version="16.3.0" />

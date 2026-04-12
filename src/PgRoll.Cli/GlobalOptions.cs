@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.Logging;
 using PgRoll.Core.Errors;
 using PgRoll.PostgreSQL;
 
@@ -21,6 +22,27 @@ public sealed class GlobalOptions
     }
 
     public PgMigrationExecutor BuildExecutor(string? connection, string schema,
-        string pgrollSchema, int lockTimeout, string? role)
-        => new(RequireConnection(connection), schema, pgrollSchema, lockTimeout, role);
+        string pgrollSchema, int lockTimeout, string? role, bool verbose = false)
+    {
+        if (!verbose)
+            return new PgMigrationExecutor(RequireConnection(connection), schema, pgrollSchema, lockTimeout, role);
+
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.SetMinimumLevel(LogLevel.Information);
+            builder.AddSimpleConsole(options =>
+            {
+                options.SingleLine = true;
+                options.TimestampFormat = "HH:mm:ss ";
+            });
+        });
+
+        return PgMigrationExecutor.CreateOwned(
+            RequireConnection(connection),
+            schema,
+            pgrollSchema,
+            lockTimeout,
+            role,
+            loggerFactory);
+    }
 }

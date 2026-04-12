@@ -1,4 +1,5 @@
 using System.CommandLine;
+using PgRoll.Core.Models;
 
 namespace PgRoll.Cli.Commands;
 
@@ -13,7 +14,7 @@ public static class PendingCommand
             "Exits with code 1 if there are pending migrations, 0 if everything is up to date.");
         cmd.AddArgument(dirArg);
 
-        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
             if (!dir.Exists)
             {
@@ -35,12 +36,17 @@ public static class PendingCommand
                 return;
             }
 
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            var loadedMigrations = new List<(FileInfo File, Migration Migration)>();
+            foreach (var file in files)
+                loadedMigrations.Add((file, await Migration.LoadAsync(file.FullName)));
+
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             var history = await executor.GetHistoryAsync();
             var applied = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
-            var pending = files
-                .Where(f => !applied.Contains(Path.GetFileNameWithoutExtension(f.Name)))
+            var pending = loadedMigrations
+                .Where(x => !applied.Contains(x.Migration.Name))
+                .Select(x => x.File)
                 .ToList();
 
             if (pending.Count == 0)
@@ -57,7 +63,7 @@ public static class PendingCommand
             // Exit 1 — signals the CD pipeline that migrations must be applied
             Environment.Exit(1);
 
-        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

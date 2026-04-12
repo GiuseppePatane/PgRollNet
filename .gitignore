@@ -30,3 +30,6 @@ Thumbs.db
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+
+## Local migration output
+catalog-pgroll-migrations/

@@ -8,9 +8,9 @@ public static class LatestCommand
     {
         var cmd = new Command("latest", "Print the name of the most recently applied migration.");
 
-        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             var history = await executor.GetHistoryAsync();
             var latest = history.LastOrDefault();
 
@@ -22,7 +22,7 @@ public static class LatestCommand
             }
 
             Console.WriteLine(latest.Name);
-        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

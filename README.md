@@ -118,7 +118,7 @@ using PgRoll.PostgreSQL;
 
 var connectionString = "Host=localhost;Database=mydb;Username=postgres";
 
-var executor = new PgMigrationExecutor(connectionString);
+await using var executor = new PgMigrationExecutor(connectionString);
 
 await executor.InitializeAsync();
 await executor.StartAsync(migration);
@@ -138,8 +138,7 @@ Or use the API directly:
 ```csharp
 using PgRoll.EntityFrameworkCore;
 
-var converter = new EfCoreMigrationConverter();
-var result = converter.Convert("AddUserTable", efCoreMigrationOperations);
+var result = EfCoreMigrationConverter.Convert("AddUserTable", efCoreMigrationOperations);
 
 // result.Migration  — pgroll Migration ready to execute
 // result.Skipped    — list of operation types that couldn't be converted

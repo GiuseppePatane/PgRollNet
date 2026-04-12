@@ -8,12 +8,12 @@ public static class InitCommand
     {
         var cmd = new Command("init", "Initialize the pgroll state schema in the target database.");
 
-        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             await executor.InitializeAsync();
             Console.WriteLine("pgroll initialized successfully.");
-        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

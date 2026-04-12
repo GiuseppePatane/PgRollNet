@@ -8,12 +8,12 @@ public static class RollbackCommand
     {
         var cmd = new Command("rollback", "Roll back the active migration.");
 
-        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             await executor.RollbackAsync();
             Console.WriteLine("Migration rolled back successfully.");
-        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

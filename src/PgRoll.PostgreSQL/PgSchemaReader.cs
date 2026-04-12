@@ -3,18 +3,21 @@ using PgRoll.Core.Schema;
 
 namespace PgRoll.PostgreSQL;
 
-public sealed class PgSchemaReader
+public sealed class PgSchemaReader : IDisposable, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly bool _ownsDataSource;
 
     public PgSchemaReader(NpgsqlDataSource dataSource)
     {
         _dataSource = dataSource;
+        _ownsDataSource = false;
     }
 
     public PgSchemaReader(string connectionString)
         : this(NpgsqlDataSource.Create(connectionString))
     {
+        _ownsDataSource = true;
     }
 
     /// <summary>
@@ -198,5 +201,17 @@ public sealed class PgSchemaReader
             indexes.Add(reader.GetString(0));
 
         return indexes;
+    }
+
+    public void Dispose()
+    {
+        if (_ownsDataSource)
+            _dataSource.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ownsDataSource)
+            await _dataSource.DisposeAsync();
     }
 }

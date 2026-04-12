@@ -77,6 +77,21 @@ public class StateStoreTests(PostgresFixture postgres) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RecordStarted_WhenAnotherActiveMigrationExistsForSchema_Throws()
+    {
+        await _store.RecordStartedAsync(new PgRoll.Core.State.MigrationRecord(
+            "public", "m1", null,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+
+        var act = async () => await _store.RecordStartedAsync(new PgRoll.Core.State.MigrationRecord(
+            "public", "m2", null,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, null, false));
+
+        var ex = await act.Should().ThrowAsync<PostgresException>();
+        ex.Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+    }
+
+    [Fact]
     public async Task DeleteRecord_RemovesMigration()
     {
         var record = new PgRoll.Core.State.MigrationRecord(

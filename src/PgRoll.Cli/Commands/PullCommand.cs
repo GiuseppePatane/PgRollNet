@@ -11,9 +11,9 @@ public static class PullCommand
         var cmd = new Command("pull", "Write completed migration history to JSON files.");
         cmd.AddArgument(dirArg);
 
-        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (dir, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             var history = await executor.GetHistoryAsync();
             var completed = history.Where(r => r.Done).ToList();
 
@@ -36,7 +36,7 @@ public static class PullCommand
             }
 
             Console.WriteLine($"Written {written} migration file(s) to '{dir.FullName}'.");
-        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, dirArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

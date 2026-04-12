@@ -15,7 +15,7 @@ public static class StartCommand
         cmd.AddOption(dryRunOpt);
         cmd.AddArgument(fileArg);
 
-        cmd.SetHandler(async (dryRun, file, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (dryRun, file, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
             var migration = await Migration.LoadAsync(file.FullName);
 
@@ -30,7 +30,7 @@ public static class StartCommand
                 Console.WriteLine($"  [{i + 1}/{migration.Operations.Count}] {migration.Operations[i].Describe()}");
             Console.WriteLine();
 
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
 
             long lastTotal = 0;
             string? lastTable = null;
@@ -52,7 +52,7 @@ public static class StartCommand
 
             Console.WriteLine($"✓ Migration '{migration.Name}' started. Run 'pgroll-net complete' to finalize.");
 
-        }, dryRunOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, dryRunOpt, fileArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

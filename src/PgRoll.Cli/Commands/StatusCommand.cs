@@ -8,16 +8,16 @@ public static class StatusCommand
     {
         var cmd = new Command("status", "Show the currently active migration.");
 
-        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             var active = await executor.GetStatusAsync();
 
             if (active is null)
                 Console.WriteLine("No active migration.");
             else
                 Console.WriteLine($"Active migration: {active.Name} (started {active.CreatedAt:u})");
-        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

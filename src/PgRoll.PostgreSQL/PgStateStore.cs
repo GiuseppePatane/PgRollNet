@@ -6,11 +6,12 @@ using PgRoll.Core.State;
 
 namespace PgRoll.PostgreSQL;
 
-public sealed class PgStateStore : IMigrationState
+public sealed class PgStateStore : IMigrationState, IDisposable, IAsyncDisposable
 {
     private readonly NpgsqlDataSource _dataSource;
     private readonly ILogger<PgStateStore> _logger;
     private readonly string _pgrollSchema;
+    private readonly bool _ownsDataSource;
 
     private string TableRef => $"{_pgrollSchema}.migrations";
 
@@ -19,6 +20,7 @@ public sealed class PgStateStore : IMigrationState
         _dataSource = dataSource;
         _pgrollSchema = pgrollSchema;
         _logger = logger ?? NullLogger<PgStateStore>.Instance;
+        _ownsDataSource = false;
     }
 
     /// <summary>
@@ -27,6 +29,7 @@ public sealed class PgStateStore : IMigrationState
     public PgStateStore(string connectionString, string pgrollSchema = "pgroll", ILogger<PgStateStore>? logger = null)
         : this(NpgsqlDataSource.Create(connectionString), pgrollSchema, logger)
     {
+        _ownsDataSource = true;
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
@@ -151,5 +154,17 @@ public sealed class PgStateStore : IMigrationState
             ?? throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    public void Dispose()
+    {
+        if (_ownsDataSource)
+            _dataSource.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ownsDataSource)
+            await _dataSource.DisposeAsync();
     }
 }

@@ -14,9 +14,9 @@ public static class MigrateCommand
         cmd.AddArgument(dirArg);
         cmd.AddOption(continueOnError);
 
-        cmd.SetHandler(async (dir, skipOnError, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (dir, skipOnError, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
 
             var migrationFiles = dir.GetFiles("*.json")
                 .Concat(dir.GetFiles("*.yaml"))
@@ -30,11 +30,15 @@ public static class MigrateCommand
                 return;
             }
 
+            var loadedMigrations = new List<(FileInfo File, Migration Migration)>();
+            foreach (var file in migrationFiles)
+                loadedMigrations.Add((file, await Migration.LoadAsync(file.FullName)));
+
             var history = await executor.GetHistoryAsync();
             var applied = history.Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
 
-            var pending = migrationFiles
-                .Where(f => !applied.Contains(Path.GetFileNameWithoutExtension(f.Name)))
+            var pending = loadedMigrations
+                .Where(x => !applied.Contains(x.Migration.Name))
                 .ToList();
 
             if (pending.Count == 0)
@@ -45,9 +49,8 @@ public static class MigrateCommand
 
             Console.WriteLine($"Applying {pending.Count} migration(s)...");
             var failed = new List<string>();
-            foreach (var file in pending)
+            foreach (var (_, migration) in pending)
             {
-                var migration = await Migration.LoadAsync(file.FullName);
                 if (migration.Operations.Count == 0)
                 {
                     Console.WriteLine($"  Skipping '{migration.Name}' (no operations)");
@@ -79,7 +82,7 @@ public static class MigrateCommand
                 Console.WriteLine($"Finished with {failed.Count} skipped migration(s): {string.Join(", ", failed)}");
             else
                 Console.WriteLine("All migrations applied.");
-        }, dirArg, continueOnError, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, dirArg, continueOnError, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

@@ -13,7 +13,7 @@ namespace PgRoll.PostgreSQL;
 /// <summary>
 /// Orchestrates the full migration lifecycle: Start → Complete / Rollback.
 /// </summary>
-public sealed class PgMigrationExecutor
+public sealed class PgMigrationExecutor : IDisposable, IAsyncDisposable
 {
     private const string SoftDeletePrefix = "_pgroll_del_";
     private const string TempColPrefix = "_pgroll_new_";
@@ -26,6 +26,9 @@ public sealed class PgMigrationExecutor
     private readonly string _schemaName;
     private readonly string? _role;
     private readonly int _lockTimeoutMs;
+    private readonly ILoggerFactory? _loggerFactory;
+    private readonly bool _ownsDataSource;
+    private readonly bool _ownsLoggerFactory;
 
     /// <summary>
     /// Optional progress reporter for backfill operations.
@@ -39,14 +42,41 @@ public sealed class PgMigrationExecutor
         string pgrollSchema = "pgroll",
         string? role = null,
         int lockTimeoutMs = 500,
+        ILoggerFactory? loggerFactory = null,
         ILogger<PgMigrationExecutor>? logger = null)
+        : this(
+            dataSource,
+            schemaName,
+            pgrollSchema,
+            role,
+            lockTimeoutMs,
+            loggerFactory,
+            logger,
+            ownsDataSource: false,
+            ownsLoggerFactory: false)
+    {
+    }
+
+    private PgMigrationExecutor(
+        NpgsqlDataSource dataSource,
+        string schemaName,
+        string pgrollSchema,
+        string? role,
+        int lockTimeoutMs,
+        ILoggerFactory? loggerFactory,
+        ILogger<PgMigrationExecutor>? logger,
+        bool ownsDataSource,
+        bool ownsLoggerFactory)
     {
         _dataSource = dataSource;
         _schemaName = schemaName;
         _role = role;
         _lockTimeoutMs = lockTimeoutMs;
-        _logger = logger ?? NullLogger<PgMigrationExecutor>.Instance;
-        _stateStore = new PgStateStore(dataSource, pgrollSchema);
+        _loggerFactory = loggerFactory;
+        _ownsDataSource = ownsDataSource;
+        _ownsLoggerFactory = ownsLoggerFactory;
+        _logger = logger ?? loggerFactory?.CreateLogger<PgMigrationExecutor>() ?? NullLogger<PgMigrationExecutor>.Instance;
+        _stateStore = new PgStateStore(dataSource, pgrollSchema, loggerFactory?.CreateLogger<PgStateStore>());
         _schemaReader = new PgSchemaReader(dataSource);
     }
 
@@ -56,10 +86,39 @@ public sealed class PgMigrationExecutor
         string pgrollSchema = "pgroll",
         int lockTimeoutMs = 500,
         string? role = null,
+        ILoggerFactory? loggerFactory = null,
         ILogger<PgMigrationExecutor>? logger = null)
-        : this(NpgsqlDataSource.Create(connectionString), schemaName, pgrollSchema, role, lockTimeoutMs, logger)
+        : this(
+            NpgsqlDataSource.Create(connectionString),
+            schemaName,
+            pgrollSchema,
+            role,
+            lockTimeoutMs,
+            loggerFactory,
+            logger,
+            ownsDataSource: true,
+            ownsLoggerFactory: false)
     {
     }
+
+    public static PgMigrationExecutor CreateOwned(
+        string connectionString,
+        string schemaName = "public",
+        string pgrollSchema = "pgroll",
+        int lockTimeoutMs = 500,
+        string? role = null,
+        ILoggerFactory? loggerFactory = null,
+        ILogger<PgMigrationExecutor>? logger = null)
+        => new(
+            NpgsqlDataSource.Create(connectionString),
+            schemaName,
+            pgrollSchema,
+            role,
+            lockTimeoutMs,
+            loggerFactory,
+            logger,
+            ownsDataSource: true,
+            ownsLoggerFactory: loggerFactory is not null);
 
     private async ValueTask<NpgsqlConnection> OpenConnectionAsync(CancellationToken ct)
     {
@@ -276,6 +335,22 @@ public sealed class PgMigrationExecutor
         await _stateStore.RecordStartedAsync(record, ct);
         await _stateStore.RecordCompletedAsync(_schemaName, migrationName, ct);
         _logger.LogInformation("Baseline migration '{Name}' created for schema '{Schema}'.", migrationName, _schemaName);
+    }
+
+    public void Dispose()
+    {
+        if (_ownsDataSource)
+            _dataSource.Dispose();
+        if (_ownsLoggerFactory)
+            _loggerFactory?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_ownsDataSource)
+            await _dataSource.DisposeAsync();
+        if (_ownsLoggerFactory)
+            _loggerFactory?.Dispose();
     }
 
     // ── Start phase helpers ───────────────────────────────────────────────────

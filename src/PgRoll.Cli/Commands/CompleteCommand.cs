@@ -8,12 +8,12 @@ public static class CompleteCommand
     {
         var cmd = new Command("complete", "Complete the active migration.");
 
-        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             await executor.CompleteAsync();
             Console.WriteLine("Migration completed successfully.");
-        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

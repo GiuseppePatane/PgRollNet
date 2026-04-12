@@ -12,12 +12,12 @@ public static class BaselineCommand
             "Mark the current database state as a known baseline without running any operations.");
         cmd.AddArgument(nameArg);
 
-        cmd.SetHandler(async (name, connection, schema, pgrollSchema, lockTimeout, role) =>
+        cmd.SetHandler(async (name, connection, schema, pgrollSchema, lockTimeout, role, verbose) =>
         {
-            var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role);
+            await using var executor = g.BuildExecutor(connection, schema, pgrollSchema, lockTimeout, role, verbose);
             await executor.CreateBaselineAsync(name);
             Console.WriteLine($"Baseline migration '{name}' created for schema '{schema}'.");
-        }, nameArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role);
+        }, nameArg, g.Connection, g.Schema, g.PgrollSchema, g.LockTimeout, g.Role, g.Verbose);
 
         return cmd;
     }

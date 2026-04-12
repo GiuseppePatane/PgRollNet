@@ -10,3 +10,7 @@ CREATE TABLE IF NOT EXISTS {0}.migrations (
     done        BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (schema, name)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_migrations_active_per_schema
+    ON {0}.migrations (schema)
+    WHERE done = FALSE;
